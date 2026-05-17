@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: miyupay
+      POSTGRES_USER: miyupay
+      POSTGRES_PASSWORD: miyupay
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/models/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+  backend:
+    build: ./backend
+    ports:
+      - '3001:3001'
+    environment:
+      DATABASE_URL: postgresql://miyupay:miyupay@db:5432/miyupay
+      JWT_SECRET: local_dev_secret_change_in_prod
+      NODE_ENV: development
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
