@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { User, Wallet, Transaction, ExchangeRate, AuditEntry } from '../types';
 
-const api = axios.create({ baseURL: '/api', timeout: 10_000 });
+const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL}/api`, timeout: 10_000 });
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('miyupay_token');
