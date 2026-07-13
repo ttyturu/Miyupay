@@ -1,11 +1,13 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { WalletIcon, ArrowsLeftRightIcon, ClockCounterClockwiseIcon, ShieldCheckIcon, SignOutIcon } from '@phosphor-icons/react';
 import { useAuth } from '../../hooks/useAuth';
+import Logo from '../ui/Logo';
 
 const NAV = [
-  { to: '/dashboard',    label: 'Dashboard' },
-  { to: '/send',         label: 'Send' },
-  { to: '/transactions', label: 'Transactions' },
-  { to: '/audit',        label: 'Audit Trail' },
+  { to: '/dashboard',    label: 'Dashboard', icon: WalletIcon },
+  { to: '/send',         label: 'Send', icon: ArrowsLeftRightIcon },
+  { to: '/transactions', label: 'Transactions', icon: ClockCounterClockwiseIcon },
+  { to: '/audit',        label: 'Audit Trail', icon: ShieldCheckIcon },
 ];
 
 export default function Layout() {
@@ -15,36 +17,54 @@ export default function Layout() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      <nav className="bg-card border-b border-border sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="font-semibold text-sm text-gray-900">MiyuPay</span>
-            <div className="flex gap-1">
-              {NAV.map(({ to, label }) => (
+            <Logo className="scale-90 origin-left" />
+            <div className="hidden sm:flex gap-1">
+              {NAV.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to}
                   className={({ isActive }) =>
-                    `text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                    `flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-gray-100 text-gray-900 font-medium'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-muted text-primary font-semibold'
+                        : 'text-muted-foreground hover:text-primary'
                     }`
                   }
                 >
+                  <Icon size={16} weight="regular" />
                   {label}
                 </NavLink>
               ))}
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">{user?.email}</span>
+            <span className="hidden sm:inline text-xs text-muted-foreground">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
             >
+              <SignOutIcon size={16} />
               Sign out
             </button>
           </div>
+        </div>
+        <div className="sm:hidden flex gap-1 px-4 pb-2 overflow-x-auto">
+          {NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to}
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+                  isActive
+                    ? 'bg-muted text-primary font-semibold'
+                    : 'text-muted-foreground hover:text-primary'
+                }`
+              }
+            >
+              <Icon size={16} weight="regular" />
+              {label}
+            </NavLink>
+          ))}
         </div>
       </nav>
       <main>
