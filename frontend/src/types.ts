@@ -53,3 +53,24 @@ export interface AuditEntry {
   new_status: string | null;
   created_at: string;
 }
+
+export interface LedgerEntry {
+  id: string;
+  transaction_id: string;
+  wallet_id: string;
+  wallet_owner: string;
+  entry_type: 'DEBIT' | 'CREDIT';
+  currency: Currency;
+  amount: number;
+  balance_after: number;
+  created_at: string;
+}
+
+export interface FraudCheck {
+  id: string;
+  transaction_id: string;
+  rule_name: string;
+  triggered: boolean;
+  details: string | null;
+  created_at: string;
+}

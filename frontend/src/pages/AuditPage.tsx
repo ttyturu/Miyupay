@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ShieldCheckIcon, CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react';
+import { ShieldCheckIcon, CaretDownIcon, CaretUpIcon, WarningCircleIcon, CheckCircleIcon } from '@phosphor-icons/react';
 import { auditService } from '../services/api';
+import { Currency } from '../types';
 
 const EVENT_COLORS: Record<string, string> = {
   TRANSACTION_CREATED:   'bg-secondary/10 text-secondary',
@@ -10,12 +11,73 @@ const EVENT_COLORS: Record<string, string> = {
   TRANSACTION_FAILED:    'bg-destructive/10 text-destructive',
 };
 
+const SYMBOLS: Record<Currency, string> = { SGD: 'S$', MYR: 'RM', THB: '฿' };
+
+function LedgerTab({ txId }: { txId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['audit-ledger', txId],
+    queryFn: () => auditService.getLedger(txId),
+  });
+
+  if (isLoading) return <div className="h-16 bg-muted rounded-lg animate-pulse" />;
+  if (!data?.length) return <p className="text-xs text-muted-foreground">No ledger entries yet — funds haven't been posted for this transaction.</p>;
+
+  return (
+    <div className="space-y-1.5">
+      {data.map(entry => (
+        <div key={entry.id} className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              entry.entry_type === 'CREDIT' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
+            }`}>
+              {entry.entry_type}
+            </span>
+            <span className="text-xs text-foreground font-medium">{entry.wallet_owner}</span>
+          </div>
+          <div className="text-right">
+            <p className={`text-sm font-mono font-semibold tabular-nums ${
+              entry.entry_type === 'CREDIT' ? 'text-success' : 'text-destructive'
+            }`}>
+              {entry.entry_type === 'CREDIT' ? '+' : '-'}{SYMBOLS[entry.currency]}{Number(entry.amount).toFixed(2)}
+            </p>
+            <p className="text-xs font-mono text-muted-foreground">
+              bal {SYMBOLS[entry.currency]}{Number(entry.balance_after).toFixed(2)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FraudTab({ txId }: { txId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['audit-fraud', txId],
+    queryFn: () => auditService.getFraud(txId),
+  });
+
+  if (isLoading) return <div className="h-16 bg-muted rounded-lg animate-pulse" />;
+  if (!data?.length) return <p className="text-xs text-muted-foreground">No fraud rules were evaluated for this transaction.</p>;
+
+  return (
+    <div className="space-y-1.5">
+      {data.map(check => (
+        <div key={check.id} className="flex items-start gap-2 bg-muted/40 rounded-lg px-3 py-2">
+          {check.triggered
+            ? <WarningCircleIcon size={16} weight="fill" className="text-warning shrink-0 mt-0.5" />
+            : <CheckCircleIcon size={16} weight="fill" className="text-success shrink-0 mt-0.5" />}
+          <div>
+            <p className="text-xs font-semibold text-foreground">{check.rule_name.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-muted-foreground">{check.triggered ? 'Triggered' : 'Passed'}{check.details ? ` — ${check.details}` : ''}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AuditDetail({ txId }: { txId: string }) {
   const [tab, setTab] = useState<'ledger' | 'fraud'>('ledger');
-  const { data, isLoading } = useQuery({
-    queryKey: ['audit-detail', tab, txId],
-    queryFn: () => (tab === 'ledger' ? auditService.getLedger(txId) : auditService.getFraud(txId)),
-  });
 
   return (
     <div className="mt-3 pt-3 border-t border-border">
@@ -33,13 +95,7 @@ function AuditDetail({ txId }: { txId: string }) {
           </button>
         ))}
       </div>
-      {isLoading ? (
-        <div className="h-16 bg-muted rounded-lg animate-pulse" />
-      ) : (
-        <pre className="text-xs font-mono bg-primary text-primary-foreground/90 rounded-lg p-3 overflow-x-auto">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
+      {tab === 'ledger' ? <LedgerTab txId={txId} /> : <FraudTab txId={txId} />}
     </div>
   );
 }
@@ -59,7 +115,7 @@ export default function AuditPage() {
         <h1 className="text-2xl font-bold text-foreground">Audit Trail</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
-        Immutable record of every transaction state change. Append-only — nothing is ever edited or deleted.
+        Record of every transaction state change.
       </p>
 
       {isLoading ? (

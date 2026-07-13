@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, Wallet, Transaction, ExchangeRate, AuditEntry } from '../types';
+import { User, Wallet, Transaction, ExchangeRate, AuditEntry, LedgerEntry, FraudCheck } from '../types';
 
 const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL}/api`, timeout: 10_000 });
 
@@ -54,9 +54,9 @@ export const auditService = {
   getLog: () =>
     api.get<AuditEntry[]>('/audit/log').then(r => r.data),
   getLedger: (txId: string) =>
-    api.get(`/audit/ledger/${txId}`).then(r => r.data),
+    api.get<LedgerEntry[]>(`/audit/ledger/${txId}`).then(r => r.data),
   getFraud: (txId: string) =>
-    api.get(`/audit/fraud/${txId}`).then(r => r.data),
+    api.get<FraudCheck[]>(`/audit/fraud/${txId}`).then(r => r.data),
 };
 
 export default api;
