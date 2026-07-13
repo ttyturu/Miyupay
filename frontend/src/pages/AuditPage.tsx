@@ -20,7 +20,7 @@ function LedgerTab({ txId }: { txId: string }) {
   });
 
   if (isLoading) return <div className="h-16 bg-muted rounded-lg animate-pulse" />;
-  if (!data?.length) return <p className="text-xs text-muted-foreground">No ledger entries yet — funds haven't been posted for this transaction.</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground">No ledger entries yet — funds haven't been posted for this transaction.</p>;
 
   return (
     <div className="space-y-1.5">
@@ -32,7 +32,7 @@ function LedgerTab({ txId }: { txId: string }) {
             }`}>
               {entry.entry_type}
             </span>
-            <span className="text-xs text-foreground font-medium">{entry.wallet_owner}</span>
+            <span className="text-sm text-foreground font-medium">{entry.wallet_owner}</span>
           </div>
           <div className="text-right">
             <p className={`text-sm font-mono font-semibold tabular-nums ${
@@ -40,7 +40,7 @@ function LedgerTab({ txId }: { txId: string }) {
             }`}>
               {entry.entry_type === 'CREDIT' ? '+' : '-'}{SYMBOLS[entry.currency]}{Number(entry.amount).toFixed(2)}
             </p>
-            <p className="text-xs font-mono text-muted-foreground">
+            <p className="text-sm font-mono text-muted-foreground">
               bal {SYMBOLS[entry.currency]}{Number(entry.balance_after).toFixed(2)}
             </p>
           </div>
@@ -57,7 +57,7 @@ function FraudTab({ txId }: { txId: string }) {
   });
 
   if (isLoading) return <div className="h-16 bg-muted rounded-lg animate-pulse" />;
-  if (!data?.length) return <p className="text-xs text-muted-foreground">No fraud rules were evaluated for this transaction.</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground">No fraud rules were evaluated for this transaction.</p>;
 
   return (
     <div className="space-y-1.5">
@@ -67,8 +67,8 @@ function FraudTab({ txId }: { txId: string }) {
             ? <WarningCircleIcon size={16} weight="fill" className="text-warning shrink-0 mt-0.5" />
             : <CheckCircleIcon size={16} weight="fill" className="text-success shrink-0 mt-0.5" />}
           <div>
-            <p className="text-xs font-semibold text-foreground">{check.rule_name.replace(/_/g, ' ')}</p>
-            <p className="text-xs text-muted-foreground">{check.triggered ? 'Triggered' : 'Passed'}{check.details ? ` — ${check.details}` : ''}</p>
+            <p className="text-sm font-semibold text-foreground">{check.rule_name.replace(/_/g, ' ')}</p>
+            <p className="text-sm text-muted-foreground">{check.triggered ? 'Triggered' : 'Passed'}{check.details ? ` — ${check.details}` : ''}</p>
           </div>
         </div>
       ))}
@@ -87,7 +87,7 @@ function AuditDetail({ txId }: { txId: string }) {
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-lg font-medium transition-colors ${
               tab === t ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-primary'
             }`}
           >
@@ -139,23 +139,23 @@ export default function AuditPage() {
                         {entry.event_type.replace(/_/g, ' ')}
                       </span>
                       {entry.reference_code && (
-                        <span className="text-xs font-mono text-muted-foreground">{entry.reference_code}</span>
+                        <span className="text-sm font-mono text-muted-foreground">{entry.reference_code}</span>
                       )}
                     </div>
                     {(entry.old_status || entry.new_status) && (
-                      <p className="text-xs text-muted-foreground mt-1 font-mono">
+                      <p className="text-sm text-muted-foreground mt-1 font-mono">
                         {entry.old_status && `${entry.old_status} → `}{entry.new_status}
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                  <span className="text-sm text-muted-foreground font-mono whitespace-nowrap">
                     {new Date(entry.created_at).toLocaleString('en-SG')}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : entry.id)}
-                  className="flex items-center gap-1 text-xs font-medium text-secondary mt-2 hover:text-primary transition-colors"
+                  className="flex items-center gap-1 text-sm font-medium text-secondary mt-2 hover:text-primary transition-colors"
                 >
                   {isOpen ? <CaretUpIcon size={12} /> : <CaretDownIcon size={12} />}
                   {isOpen ? 'Hide detail' : 'View ledger / fraud-check detail'}

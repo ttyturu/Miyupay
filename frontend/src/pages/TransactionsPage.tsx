@@ -47,20 +47,20 @@ export default function TransactionsPage() {
                 const amount   = isSender ? tx.sender_amount  : tx.receiver_amount;
                 return (
                   <tr key={tx.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-muted-foreground">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
                       {new Date(tx.created_at).toLocaleDateString('en-SG')}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">
                         {isSender ? `→ ${tx.receiver_name}` : `← ${tx.sender_name}`}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">{tx.reference_code}</p>
-                      {tx.note && <p className="text-xs text-muted-foreground mt-0.5">{tx.note}</p>}
+                      <p className="text-sm text-muted-foreground mt-0.5 font-mono">{tx.reference_code}</p>
+                      {tx.note && <p className="text-sm text-muted-foreground mt-0.5">{tx.note}</p>}
                       {tx.fraud_flagged && tx.fraud_reason && (
-                        <p className="text-xs text-warning mt-0.5">{tx.fraud_reason}</p>
+                        <p className="text-sm text-warning mt-0.5">{tx.fraud_reason}</p>
                       )}
                       {tx.is_cross_border && (
-                        <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                        <p className="text-sm text-muted-foreground mt-0.5 font-mono">
                           {isSender
                             ? `${tx.sender_currency} → ${tx.receiver_currency} · rate ${Number(tx.exchange_rate).toFixed(4)}`
                             : `${tx.sender_currency} → ${tx.receiver_currency}`}
@@ -75,7 +75,7 @@ export default function TransactionsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{currency}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{currency}</td>
                     <td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${
                       tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
                     }`}>

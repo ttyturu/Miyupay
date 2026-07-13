@@ -32,13 +32,13 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-8">
-          <Logo className="mb-3" />
-          <p className="text-sm text-muted-foreground">Create your account</p>
+          <Logo className="h-14 w-auto mb-4" />
+          <p className="text-base text-muted-foreground">Create your account</p>
         </div>
         <div className="bg-card border border-border rounded-lg shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-3" noValidate>
             <div>
-              <label htmlFor="reg-name" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="reg-name" className="block text-base font-medium text-muted-foreground mb-1">
                 Full name
               </label>
               <input
@@ -50,7 +50,7 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label htmlFor="reg-email" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="reg-email" className="block text-base font-medium text-muted-foreground mb-1">
                 Email
               </label>
               <input
@@ -62,7 +62,7 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label htmlFor="reg-password" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="reg-password" className="block text-base font-medium text-muted-foreground mb-1">
                 Password
               </label>
               <div className="relative">
@@ -84,7 +84,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="reg-country" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="reg-country" className="block text-base font-medium text-muted-foreground mb-1">
                 Country
               </label>
               <select
@@ -99,7 +99,7 @@ export default function RegisterPage() {
               </select>
             </div>
             {error && (
-              <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+              <p role="alert" className="flex items-center gap-1.5 text-base text-destructive">
                 <WarningCircleIcon size={14} weight="fill" /> {error}
               </p>
             )}
@@ -110,7 +110,7 @@ export default function RegisterPage() {
               {loading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          <p className="text-center text-base text-muted-foreground mt-4">
             Have an account?{' '}
             <Link to="/login" className="text-primary font-semibold">Sign in</Link>
           </p>

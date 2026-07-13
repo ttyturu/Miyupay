@@ -21,12 +21,12 @@ export default function Layout() {
       <nav className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Logo className="scale-90 origin-left" />
+            <Logo className="h-8 w-auto scale-90 origin-left" />
             <div className="hidden sm:flex gap-1">
               {NAV.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to}
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                    `flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors ${
                       isActive
                         ? 'bg-muted text-primary font-semibold'
                         : 'text-muted-foreground hover:text-primary'
@@ -40,10 +40,10 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-xs text-muted-foreground">{user?.email}</span>
+            <span className="hidden sm:inline text-sm text-muted-foreground">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               <SignOutIcon size={16} />
               Sign out
@@ -54,7 +54,7 @@ export default function Layout() {
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to}
               className={({ isActive }) =>
-                `flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
+                `flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
                   isActive
                     ? 'bg-muted text-primary font-semibold'
                     : 'text-muted-foreground hover:text-primary'

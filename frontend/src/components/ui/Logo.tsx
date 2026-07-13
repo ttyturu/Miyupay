@@ -12,5 +12,5 @@ export default function Logo({ variant = 'full', className = '' }: LogoProps) {
     );
   }
 
-  return <img src="/miyupay.png" alt="MiyuPay" className={`h-8 w-auto ${className}`} />;
+  return <img src="/miyupay.png" alt="MiyuPay" className={className || 'h-8 w-auto'} />;
 }

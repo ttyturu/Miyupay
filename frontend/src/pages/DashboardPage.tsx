@@ -89,7 +89,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-foreground">
                     {isSender ? `To ${tx.receiver_name}` : `From ${tx.sender_name}`}
                   </p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5 font-mono">
+                  <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 font-mono">
                     {tx.reference_code}
                     {tx.fraud_flagged && (
                       <span className="ml-2 flex items-center gap-0.5 text-warning font-sans">

@@ -32,13 +32,13 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-8">
-          <Logo className="mb-3" />
-          <p className="text-sm text-muted-foreground">Sign in to your account</p>
+          <Logo className="h-14 w-auto mb-4" />
+          <p className="text-base text-muted-foreground">Sign in to your account</p>
         </div>
         <div className="bg-card border border-border rounded-lg shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-3" noValidate>
             <div>
-              <label htmlFor="login-email" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="login-email" className="block text-base font-medium text-muted-foreground mb-1">
                 Email
               </label>
               <input
@@ -50,7 +50,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="block text-xs font-medium text-muted-foreground mb-1">
+              <label htmlFor="login-password" className="block text-base font-medium text-muted-foreground mb-1">
                 Password
               </label>
               <div className="relative">
@@ -72,7 +72,7 @@ export default function LoginPage() {
               </div>
             </div>
             {error && (
-              <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+              <p role="alert" className="flex items-center gap-1.5 text-base text-destructive">
                 <WarningCircleIcon size={14} weight="fill" /> {error}
               </p>
             )}
@@ -83,7 +83,7 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          <p className="text-center text-base text-muted-foreground mt-4">
             No account?{' '}
             <Link to="/register" className="text-primary font-semibold">Register</Link>
           </p>

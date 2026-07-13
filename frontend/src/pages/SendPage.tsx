@@ -64,12 +64,12 @@ export default function SendPage() {
           const isNewRecipient = reasons.some(r => r.toLowerCase().includes('first transaction'));
           return (
             <div className="bg-warning/5 border border-warning/20 rounded-lg p-3 text-left mb-4">
-              <p className="text-xs text-warning font-semibold mb-1">Why this was flagged</p>
-              <ul className="text-xs text-warning list-disc pl-4 space-y-0.5">
+              <p className="text-sm text-warning font-semibold mb-1">Why this was flagged</p>
+              <ul className="text-sm text-warning list-disc pl-4 space-y-0.5">
                 {reasons.map((r, i) => <li key={i}>{r}</li>)}
               </ul>
               {isNewRecipient && (
-                <p className="text-xs text-warning/80 mt-2">
+                <p className="text-sm text-warning/80 mt-2">
                   This recipient is now on record, so "first transaction to this recipient" won't trigger again.
                   {reasons.length > 1 && ' The other reason(s) above may still apply if you retry as-is.'}
                 </p>
@@ -78,7 +78,7 @@ export default function SendPage() {
           );
         })()}
         <div className="bg-muted/50 rounded-lg p-3 text-left mb-4">
-          <p className="text-xs text-muted-foreground mb-1">Reference</p>
+          <p className="text-sm text-muted-foreground mb-1">Reference</p>
           <p className="text-sm font-mono font-semibold text-foreground">{result.transaction.reference_code}</p>
         </div>
         <button
@@ -96,7 +96,7 @@ export default function SendPage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Send money</h1>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="send-email" className="block text-xs font-medium text-muted-foreground mb-1">
+          <label htmlFor="send-email" className="block text-sm font-medium text-muted-foreground mb-1">
             Recipient email
           </label>
           <input id="send-email" type="email" required placeholder="bob@example.com"
@@ -104,13 +104,13 @@ export default function SendPage() {
             onChange={e => setForm(f => ({ ...f, receiverEmail: e.target.value }))}
             className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
           />
-          <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-            <InfoIcon size={12} /> New recipients may trigger an additional review — this doesn't block your payment.
+          <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+            <InfoIcon size={14} /> New recipients may trigger an additional review — this doesn't block your payment.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="send-from-currency" className="block text-xs font-medium text-muted-foreground mb-1">
+            <label htmlFor="send-from-currency" className="block text-sm font-medium text-muted-foreground mb-1">
               You send
             </label>
             <select id="send-from-currency" value={form.senderCurrency}
@@ -121,7 +121,7 @@ export default function SendPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="send-to-currency" className="block text-xs font-medium text-muted-foreground mb-1">
+            <label htmlFor="send-to-currency" className="block text-sm font-medium text-muted-foreground mb-1">
               They receive
             </label>
             <select id="send-to-currency" value={form.receiverCurrency}
@@ -133,7 +133,7 @@ export default function SendPage() {
           </div>
         </div>
         <div>
-          <label htmlFor="send-amount" className="block text-xs font-medium text-muted-foreground mb-1">
+          <label htmlFor="send-amount" className="block text-sm font-medium text-muted-foreground mb-1">
             Amount
             {senderWallet && (
               <span className="text-muted-foreground/70 ml-2 font-mono">
@@ -147,8 +147,8 @@ export default function SendPage() {
             className="w-full border border-border rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-secondary"
           />
           {isLargeAmount && (
-            <p className="flex items-center gap-1 text-xs text-warning mt-1">
-              <InfoIcon size={12} /> Large amount — may be routed through an additional fraud check.
+            <p className="flex items-center gap-1 text-sm text-warning mt-1">
+              <InfoIcon size={14} /> Large amount — may be routed through an additional fraud check.
             </p>
           )}
         </div>
@@ -159,7 +159,7 @@ export default function SendPage() {
               <span className="font-semibold tabular-nums">{SYMBOLS[form.receiverCurrency]}{receiverAmount} {form.receiverCurrency}</span>
             </div>
             {form.senderCurrency !== form.receiverCurrency && rate && (
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <div className="flex justify-between text-sm text-muted-foreground mt-1">
                 <span className="font-sans">Rate</span>
                 <span className="tabular-nums">1 {form.senderCurrency} = {Number(rate.rate).toFixed(4)} {form.receiverCurrency}</span>
               </div>
@@ -167,7 +167,7 @@ export default function SendPage() {
           </div>
         )}
         <div>
-          <label htmlFor="send-note" className="block text-xs font-medium text-muted-foreground mb-1">
+          <label htmlFor="send-note" className="block text-sm font-medium text-muted-foreground mb-1">
             Note (optional)
           </label>
           <input id="send-note" type="text" placeholder="Rent, dinner, etc."
@@ -177,7 +177,7 @@ export default function SendPage() {
           />
         </div>
         {mutation.error && (
-          <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+          <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
             <WarningCircleIcon size={14} weight="fill" />
             {(mutation.error as any).response?.data?.error || 'Something went wrong'}
           </p>
