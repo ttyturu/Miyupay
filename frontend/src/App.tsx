@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import SendPage from './pages/SendPage';
 import TransactionsPage from './pages/TransactionsPage';
 import AuditPage from './pages/AuditPage';
+import ConvertPage from './pages/ConvertPage';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { token } = useAuth();
@@ -26,6 +27,7 @@ export default function App() {
       }>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard"    element={<DashboardPage />} />
+        <Route path="convert"      element={<ConvertPage />} />
         <Route path="send"         element={<SendPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="audit"        element={<AuditPage />} />
