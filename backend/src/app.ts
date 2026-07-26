@@ -5,7 +5,6 @@ import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import { walletRouter, auditRouter } from './routes/walletAndAudit';
 import { errorHandler } from './middleware/errorHandler';
-import { db } from './utils/db';
 
 const app = express();
 
@@ -18,14 +17,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/wallet',       walletRouter);
 app.use('/api/audit',        auditRouter);
 
-app.get('/api/health', async (_req, res) => {
-  try {
-    await db.query('SELECT 1');
-    res.json({ status: 'ok', service: 'MiyuPay v3', db: 'connected' });
-  } catch (err) {
-    res.status(503).json({ status: 'error', service: 'MiyuPay v3', db: 'unreachable' });
-  }
-});
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'MiyuPay v3' }));
 
 app.use(errorHandler);
 

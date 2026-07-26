@@ -32,6 +32,10 @@ export const authService = {
 export const walletService = {
   getWallets: () =>
     api.get<Wallet[]>('/wallet').then(r => r.data),
+  convert: (data: { fromCurrency: string; toCurrency: string; amount: number }) =>
+    api.post<{
+      fromCurrency: string; toCurrency: string; sourceAmount: number; receivedAmount: number; exchangeRate: number;
+    }>('/wallet/convert', data).then(r => r.data),
 };
 
 export const transactionService = {

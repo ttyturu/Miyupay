@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { WalletIcon, PaperPlaneTiltIcon, ClockCounterClockwiseIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { WalletIcon, CurrencyCircleDollarIcon, PaperPlaneTiltIcon, ClockCounterClockwiseIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { walletService, transactionService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { Currency } from '../types';
@@ -20,7 +20,19 @@ export default function DashboardPage() {
     queryFn: transactionService.getAll,
   });
 
+  const { data: rates, isLoading: rLoading } = useQuery({
+    queryKey: ['rates'],
+    queryFn: transactionService.getRates,
+  });
+
   const recent = transactions?.slice(0, 5) ?? [];
+  const totalInSgd = wallets?.reduce((total, wallet) => {
+    const rate = rates?.find(item => item.from_currency === wallet.currency && item.to_currency === 'SGD');
+    return total + (rate ? Number(wallet.balance) * Number(rate.rate) : 0);
+  }, 0);
+  const totalReady = !wLoading && !rLoading && wallets?.every(wallet =>
+    rates?.some(item => item.from_currency === wallet.currency && item.to_currency === 'SGD')
+  );
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -28,6 +40,26 @@ export default function DashboardPage() {
         Welcome back, {user?.fullName?.split(' ')[0]}
       </h1>
       <p className="text-sm text-muted-foreground mb-6">Your MiyuPay overview</p>
+
+      {/* Total balance */}
+      <div className="bg-card border border-border rounded-lg shadow-sm p-5 mb-6">
+        <div className="flex items-center gap-2 text-secondary mb-2">
+          <CurrencyCircleDollarIcon size={21} weight="fill" />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total balance</p>
+        </div>
+        {wLoading || rLoading ? (
+          <div className="h-9 w-52 bg-muted rounded animate-pulse" />
+        ) : totalReady ? (
+          <>
+            <p className="text-3xl font-mono font-bold tabular-nums text-foreground">
+              S${totalInSgd!.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">Combined value of your SGD, MYR and THB wallets</p>
+          </>
+        ) : (
+          <p className="text-sm text-destructive">Unable to load exchange rates.</p>
+        )}
+      </div>
 
       {/* Wallets */}
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Wallets</p>

@@ -5,6 +5,7 @@ import Logo from '../ui/Logo';
 
 const NAV = [
   { to: '/dashboard',    label: 'Dashboard', icon: WalletIcon },
+  { to: '/convert',      label: 'Convert', icon: ArrowsLeftRightIcon },
   { to: '/send',         label: 'Send', icon: ArrowsLeftRightIcon },
   { to: '/transactions', label: 'Transactions', icon: ClockCounterClockwiseIcon },
   { to: '/audit',        label: 'Audit Trail', icon: ShieldCheckIcon },
