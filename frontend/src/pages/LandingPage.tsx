@@ -28,12 +28,15 @@ const CURRENCIES = [
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sendDropped, setSendDropped] = useState(false);
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
     window.scrollTo(0, 0);
+    const frame = requestAnimationFrame(() => setSendDropped(true));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -127,7 +130,11 @@ export default function LandingPage() {
 
         <div className="relative z-10 flex flex-col items-center pt-28 sm:pt-32 md:pt-40 px-4 sm:px-6 text-center">
           <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl leading-[1.1] tracking-tighter font-semibold">
-            <span className="text-secondary">Send</span> <span className="text-primary-light">money,</span>
+            <span
+              className={`inline-block text-secondary transition-all duration-700 ease-out ${sendDropped ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-12'}`}
+            >
+              Send
+            </span> <span className="text-primary-light">money,</span>
             <br />
             <span className="text-primary-light">without borders.</span>
           </h1>
@@ -153,7 +160,11 @@ export default function LandingPage() {
                   What do we do?
                 </span>
                 <h2 className="font-heading mt-3 text-2xl sm:text-3xl md:text-4xl font-semibold leading-tight tracking-tight text-primary">
-                  <span className="text-4xl sm:text-5xl md:text-6xl text-secondary">Transfers</span> <span className="text-primary-light">that</span>
+                  <span
+                    className={`inline-block text-4xl sm:text-5xl md:text-6xl text-secondary transition-all duration-700 delay-700 ease-out ${sendDropped ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-24'}`}
+                  >
+                    Transfers
+                  </span> <span className="text-primary-light">that</span>
                   <br className="hidden sm:block" /> <span className="text-primary-light">move with you.</span>
                 </h2>
               </div>
@@ -213,7 +224,7 @@ export default function LandingPage() {
           </ScrollReveal>
         </ScrollReveal>
 
-        <ScrollReveal className="relative bg-secondary flex items-center justify-center overflow-hidden min-h-[400px] md:min-h-[520px] p-10 md:p-16">
+        <ScrollReveal className="relative bg-secondary flex items-end justify-center overflow-hidden min-h-[400px] md:min-h-[520px] pt-10 md:pt-16 px-10 md:px-16 pb-0">
           <div
             className="absolute inset-0 z-0 opacity-20"
             style={{
@@ -225,10 +236,11 @@ export default function LandingPage() {
           />
           <ScrollReveal delayMs={700} className="relative z-10 w-full">
             <ParallaxVisual
-              src="/phone1.png"
-              alt="MiyuPay features"
+              src="/phone7.png"
+              alt="MiyuPay features showing currency exchange"
               fit="contain"
-              className="w-full h-64 sm:h-80 md:h-96"
+              position="bottom"
+              className="w-full h-80 sm:h-[26rem] md:h-[32rem]"
             />
           </ScrollReveal>
         </ScrollReveal>
@@ -236,7 +248,7 @@ export default function LandingPage() {
 
       {/* Currencies */}
       <section id="currencies" className="scroll-mt-24 grid md:grid-cols-2">
-        <ScrollReveal className="order-2 md:order-1 relative bg-secondary flex items-center justify-center overflow-hidden min-h-[400px] md:min-h-[520px] p-10 md:p-16">
+        <ScrollReveal className="order-2 md:order-1 relative bg-secondary flex items-end justify-center overflow-hidden min-h-[400px] md:min-h-[520px] pt-10 md:pt-16 px-10 md:px-16 pb-0">
           <div
             className="absolute inset-0 z-0 opacity-20"
             style={{
@@ -249,9 +261,10 @@ export default function LandingPage() {
           />
           <ScrollReveal delayMs={550} className="relative z-10 w-full">
             <ParallaxVisual
-              src="/wallet1.png"
+              src="/wallet3.png"
               alt="MiyuPay supported currencies"
               fit="contain"
+              position="bottom"
               className="w-full h-80 sm:h-[26rem] md:h-[32rem]"
             />
           </ScrollReveal>
