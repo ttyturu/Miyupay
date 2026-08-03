@@ -6,8 +6,8 @@ interface LogoProps {
 export default function Logo({ variant = 'full', className = '' }: LogoProps) {
   if (variant === 'icon') {
     return (
-      <span className={`inline-block overflow-hidden ${className || 'h-8 w-9'}`}>
-        <img src="/miyupay.png" alt="MiyuPay" className="h-full w-auto max-w-none" />
+      <span className={`inline-flex items-center overflow-hidden ${className || 'h-8 w-10'}`}>
+        <img src="/miyupay.png" alt="MiyuPay" className="block h-full w-auto max-w-none" />
       </span>
     );
   }

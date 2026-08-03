@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary:     { DEFAULT: '#0F172A', foreground: '#FFFFFF' },  // logo navy
+        primary:     { DEFAULT: '#0F172A', foreground: '#FFFFFF', light: '#2C4066' },  // logo navy; light = lightened panel variant
         secondary:   { DEFAULT: '#0D9488', foreground: '#FFFFFF' },  // logo teal
         accent:      { DEFAULT: '#14B8A6', foreground: '#0F172A' },  // lighter teal, CTA/gradient end
         success:     '#16A34A',   // completed / credited
@@ -19,6 +19,8 @@ export default {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],  // use for ALL money amounts, balances, FX rates
+        heading: ['Montserrat', 'sans-serif'],   // landing page headings only
+        body:    ['"Open Sans"', 'sans-serif'],  // landing page body copy only
       },
       borderRadius: {
         lg: '0.75rem',
