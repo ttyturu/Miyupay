@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightIcon } from '@phosphor-icons/react';
+import { ArrowRightIcon, ListIcon, XIcon } from '@phosphor-icons/react';
 import Logo from '../components/ui/Logo';
 import ParallaxVisual from '../components/ui/ParallaxVisual';
 import RateTicker from '../components/ui/RateTicker';
@@ -27,6 +27,7 @@ const CURRENCIES = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
@@ -36,9 +37,8 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const threshold = window.innerHeight * 0.8;
     const handleScroll = () => {
-      setScrolled(window.scrollY > threshold);
+      setScrolled(window.scrollY > 0);
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -49,7 +49,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background overflow-x-hidden font-body">
       {/* Navbar */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 md:px-14 py-4 sm:py-5 flex items-center justify-between transition-shadow duration-300 ${scrolled ? 'bg-[#E7F4F2] shadow-[0_1px_0_rgba(15,23,42,0.08)]' : 'bg-transparent'}`}
+        className={`fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 md:px-14 py-4 sm:py-5 flex items-center justify-between transition-shadow duration-300 ${scrolled || mobileMenuOpen ? 'bg-[#E7F4F2]' : 'bg-transparent'} ${scrolled ? 'shadow-[0_1px_0_rgba(15,23,42,0.08)]' : ''}`}
       >
         <a href="#" className="cursor-pointer">
           <Logo className="h-8 w-auto" />
@@ -70,17 +70,55 @@ export default function LandingPage() {
         <div className="flex items-center gap-3">
           <Link
             to="/login"
-            className="hidden sm:inline relative text-sm font-bold text-primary/70 hover:text-primary transition-colors duration-200 after:content-[''] after:absolute after:left-0 after:-bottom-1 after:h-px after:w-full after:bg-primary after:origin-left after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-200"
+            className="hidden md:inline relative text-sm font-bold text-primary/70 hover:text-primary transition-colors duration-200 after:content-[''] after:absolute after:left-0 after:-bottom-1 after:h-px after:w-full after:bg-primary after:origin-left after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-200"
           >
             Log in
           </Link>
           <Link
             to="/register"
-            className="px-5 py-2.5 bg-primary-light text-primary-foreground text-sm font-medium rounded-lg hover:bg-secondary transition-colors duration-200"
+            className="hidden md:inline-block px-5 py-2.5 bg-primary-light text-primary-foreground text-sm font-medium rounded-lg hover:bg-secondary transition-colors duration-200"
           >
             Get Started
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="md:hidden p-1 text-primary"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <XIcon className="w-6 h-6" /> : <ListIcon className="w-6 h-6" />}
+          </button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="absolute top-full left-0 right-0 md:hidden bg-[#E7F4F2] shadow-[0_4px_12px_rgba(15,23,42,0.1)] px-6 py-5 flex flex-col gap-4">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-base font-medium text-primary"
+              >
+                {link.label}
+              </a>
+            ))}
+            <div className="h-px bg-primary/10" />
+            <Link
+              to="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-base font-bold text-primary"
+            >
+              Log in
+            </Link>
+            <Link
+              to="/register"
+              onClick={() => setMobileMenuOpen(false)}
+              className="mt-2 inline-block w-fit px-5 py-2.5 bg-primary-light text-primary-foreground text-sm font-medium rounded-lg hover:bg-secondary transition-colors duration-200"
+            >
+              Get Started
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Hero */}
@@ -100,7 +138,7 @@ export default function LandingPage() {
           </p>
           <Link
             to="/register"
-            className="mt-6 sm:mt-8 md:mt-10 px-6 sm:px-8 py-3 sm:py-3.5 bg-primary-light text-primary-foreground text-sm font-medium rounded-lg hover:bg-secondary transition-colors duration-200"
+            className="mt-6 sm:mt-8 md:mt-10 mb-10 sm:mb-0 px-6 sm:px-8 py-3 sm:py-3.5 bg-primary-light text-primary-foreground text-sm font-medium rounded-lg hover:bg-secondary transition-colors duration-200"
           >
             Get Started
           </Link>
@@ -198,7 +236,7 @@ export default function LandingPage() {
 
       {/* Currencies */}
       <section id="currencies" className="scroll-mt-24 grid md:grid-cols-2">
-        <ScrollReveal className="relative bg-secondary flex items-center justify-center overflow-hidden min-h-[400px] md:min-h-[520px] p-10 md:p-16">
+        <ScrollReveal className="order-2 md:order-1 relative bg-secondary flex items-center justify-center overflow-hidden min-h-[400px] md:min-h-[520px] p-10 md:p-16">
           <div
             className="absolute inset-0 z-0 opacity-20"
             style={{
@@ -219,7 +257,7 @@ export default function LandingPage() {
           </ScrollReveal>
         </ScrollReveal>
 
-        <ScrollReveal className="bg-primary-light flex flex-col justify-center px-6 sm:px-10 md:px-16 py-16 md:py-24">
+        <ScrollReveal className="order-1 md:order-2 bg-primary-light flex flex-col justify-center px-6 sm:px-10 md:px-16 py-16 md:py-24">
           <ScrollReveal delayMs={700}>
             <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight text-white">
               One wallet, multiple currencies.

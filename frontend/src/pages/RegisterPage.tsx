@@ -32,7 +32,9 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-8">
-          <Logo className="h-14 w-auto mb-4" />
+          <Link to="/">
+            <Logo className="h-14 w-auto mb-4" />
+          </Link>
           <p className="text-base text-muted-foreground">Create your account</p>
         </div>
         <div className="bg-card border border-border rounded-lg shadow-sm p-6">
