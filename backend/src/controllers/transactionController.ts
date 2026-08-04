@@ -21,6 +21,28 @@ export const send = async (req: Request, res: Response, next: NextFunction): Pro
   } catch (err) { next(err); }
 };
 
+export const checkRecipient = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const email = String(req.query.email || '').toLowerCase().trim();
+    if (!email) { res.json({ isNewRecipient: false }); return; }
+
+    const { rows: userRows } = await db.query<{ id: string }>(
+      'SELECT id FROM users WHERE email = $1 AND is_active = TRUE',
+      [email]
+    );
+    const receiver = userRows[0];
+    if (!receiver || receiver.id === req.user!.userId) {
+      res.json({ isNewRecipient: false }); return;
+    }
+
+    const { rows } = await db.query<{ count: string }>(
+      'SELECT COUNT(*) as count FROM transactions WHERE sender_id = $1 AND receiver_id = $2',
+      [req.user!.userId, receiver.id]
+    );
+    res.json({ isNewRecipient: parseInt(rows[0].count) === 0 });
+  } catch (err) { next(err); }
+};
+
 export const getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { rows } = await db.query(

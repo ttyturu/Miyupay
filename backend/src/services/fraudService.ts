@@ -90,6 +90,9 @@ const RULES: Rule[] = [
   },
 ];
 
+// Rules that block a transaction on their own, regardless of anything else.
+const INDEPENDENT_BLOCKING_RULES = ['LARGE_AMOUNT', 'HIGH_FREQUENCY', 'LARGE_CROSS_BORDER'];
+
 export const runFraudChecks = async (params: {
   senderId: string;
   receiverId: string;
@@ -111,8 +114,29 @@ export const runFraudChecks = async (params: {
 
   const ctx: FraudContext = { senderId, receiverId, senderAmount, senderAmountSGD, isCrossBorder };
   const results = await Promise.all(RULES.map(r => r.check(ctx)));
-  const flagged = results.some(r => r.triggered);
-  const reasons = results.filter(r => r.triggered && r.details).map(r => r.details!);
 
-  return { flagged, reason: flagged ? reasons.join('; ') : null, rules: results };
+  const newRecipient = results.find(r => r.rule_name === 'NEW_RECIPIENT');
+  const unusualHour = results.find(r => r.rule_name === 'UNUSUAL_HOUR');
+
+  // NEW_RECIPIENT and UNUSUAL_HOUR no longer block on their own — a first-time
+  // transfer during normal hours, or an off-hours transfer to a known recipient,
+  // is common and legitimate. They only combine into a real risk signal together.
+  const comboBlock = Boolean(newRecipient?.triggered && unusualHour?.triggered);
+  const independentlyTriggered = results.filter(
+    r => INDEPENDENT_BLOCKING_RULES.includes(r.rule_name) && r.triggered
+  );
+
+  const flagged = independentlyTriggered.length > 0 || comboBlock;
+
+  const reasons = independentlyTriggered.map(r => r.details!);
+  if (comboBlock) {
+    reasons.push(newRecipient!.details!, unusualHour!.details!);
+  }
+
+  return {
+    flagged,
+    reason: flagged ? reasons.join('; ') : null,
+    rules: results,
+    isNewRecipient: newRecipient?.triggered ?? false,
+  };
 };

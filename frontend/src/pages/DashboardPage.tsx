@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { WalletIcon, CurrencyCircleDollarIcon, PaperPlaneTiltIcon, ClockCounterClockwiseIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { WalletIcon, CurrencyCircleDollarIcon, PaperPlaneTiltIcon, ClockCounterClockwiseIcon, WarningCircleIcon, PlusCircleIcon } from '@phosphor-icons/react';
 import { walletService, transactionService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { Currency } from '../types';
@@ -43,9 +43,17 @@ export default function DashboardPage() {
 
       {/* Total balance */}
       <div className="bg-card border border-border rounded-lg shadow-sm p-5 mb-6">
-        <div className="flex items-center gap-2 text-secondary mb-2">
-          <CurrencyCircleDollarIcon size={21} weight="fill" />
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total balance</p>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-secondary">
+            <CurrencyCircleDollarIcon size={21} weight="fill" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total balance</p>
+          </div>
+          <Link to="/topup"
+            className="flex items-center gap-1.5 text-sm font-semibold text-secondary hover:opacity-80 transition-opacity"
+          >
+            <PlusCircleIcon size={16} weight="fill" />
+            Add credit
+          </Link>
         </div>
         {wLoading || rLoading ? (
           <div className="h-9 w-52 bg-muted rounded animate-pulse" />

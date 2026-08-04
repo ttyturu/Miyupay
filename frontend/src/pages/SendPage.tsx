@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircleIcon, WarningCircleIcon, PaperPlaneTiltIcon, InfoIcon } from '@phosphor-icons/react';
+import { CheckCircleIcon, WarningCircleIcon, PaperPlaneTiltIcon, InfoIcon, ShieldWarningIcon } from '@phosphor-icons/react';
 import { transactionService, walletService } from '../services/api';
 import { Currency, Transaction } from '../types';
 
@@ -17,9 +17,25 @@ export default function SendPage() {
     receiverCurrency: 'MYR' as Currency, amount: '', note: '',
   });
   const [result, setResult] = useState<SendResult | null>(null);
+  const [isNewRecipient, setIsNewRecipient] = useState(false);
+  const [acknowledgedEmail, setAcknowledgedEmail] = useState('');
+  const [showScamWarning, setShowScamWarning] = useState(false);
 
   const { data: wallets } = useQuery({ queryKey: ['wallets'], queryFn: walletService.getWallets });
   const { data: rates }   = useQuery({ queryKey: ['rates'],   queryFn: transactionService.getRates });
+
+  // Debounced check for whether this is a first-time recipient, used to
+  // decide whether to show a scam-awareness warning before sending.
+  useEffect(() => {
+    const email = form.receiverEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setIsNewRecipient(false); return; }
+    const timer = setTimeout(() => {
+      transactionService.checkRecipient(email)
+        .then(res => setIsNewRecipient(res.isNewRecipient))
+        .catch(() => setIsNewRecipient(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.receiverEmail]);
 
   const senderWallet = wallets?.find(w => w.currency === form.senderCurrency);
 
@@ -43,6 +59,17 @@ export default function SendPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isNewRecipient && acknowledgedEmail !== form.receiverEmail) {
+      setShowScamWarning(true);
+      return;
+    }
+    setResult(null);
+    mutation.mutate({ ...form, amount: parseFloat(form.amount) });
+  };
+
+  const handleAcknowledgeWarning = () => {
+    setAcknowledgedEmail(form.receiverEmail);
+    setShowScamWarning(false);
     setResult(null);
     mutation.mutate({ ...form, amount: parseFloat(form.amount) });
   };
@@ -70,8 +97,8 @@ export default function SendPage() {
               </ul>
               {isNewRecipient && (
                 <p className="text-sm text-warning/80 mt-2">
-                  This recipient is now on record, so "first transaction to this recipient" won't trigger again.
-                  {reasons.length > 1 && ' The other reason(s) above may still apply if you retry as-is.'}
+                  This was blocked because it's a first-time transfer to this recipient sent during an unusual hour.
+                  Sending during regular hours, or to a recipient you've paid before, won't trigger this block.
                 </p>
               )}
             </div>
@@ -104,9 +131,11 @@ export default function SendPage() {
             onChange={e => setForm(f => ({ ...f, receiverEmail: e.target.value }))}
             className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
           />
-          <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-            <InfoIcon size={14} /> New recipients may trigger an additional review — this doesn't block your payment.
-          </p>
+          {isNewRecipient && (
+            <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+              <InfoIcon size={14} /> This is a new recipient — you'll see a quick scam-awareness reminder before sending.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -189,6 +218,34 @@ export default function SendPage() {
           {mutation.isPending ? 'Sending…' : 'Send'}
         </button>
       </form>
+
+      {showScamWarning && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+          <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-sm w-full">
+            <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center mb-4">
+              <ShieldWarningIcon size={26} weight="fill" className="text-warning" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-1">Be careful of scams</h2>
+            <p className="text-sm text-muted-foreground mb-5">
+              You're sending money to <span className="font-semibold text-foreground">{form.receiverEmail}</span> for
+              the first time. Never send money to someone you don't know or trust, and always double-check requests
+              from people claiming to be family, friends, or officials.
+            </p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setShowScamWarning(false)}
+                className="flex-1 border border-border text-sm font-semibold py-2.5 rounded-lg hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button type="button" onClick={handleAcknowledgeWarning}
+                className="flex-1 bg-gradient-to-r from-secondary to-accent text-white text-sm font-semibold py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Understood, send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

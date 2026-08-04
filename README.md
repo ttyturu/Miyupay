@@ -17,13 +17,18 @@ Users hold wallets in SGD, MYR and THB and can send money to each other instantl
 | Feature | Description |
 |---|---|
 | Auth | JWT authentication with bcrypt password hashing |
+| Email verification | Mocked — no real email sent; the code is shown on screen at registration |
+| Password reset | Mocked — no real email sent; a reset code is shown on screen from "Forgot password?" |
+| Password strength meter | Live feedback while typing on the register and reset-password forms |
 | Multi-currency wallets | SGD, MYR, THB — auto-created on registration |
+| Add credit | Stripe Checkout (test mode) top-up flow for the SGD wallet |
 | Send money | Instant transfer with live exchange rate preview |
 | Double-entry ledger | Every transfer creates a DEBIT + CREDIT — money cannot be created or lost |
 | Fraud detection | 5 rules run before every payment — flags suspicious transactions before money moves |
 | Immutable audit log | Every state change recorded permanently — append-only |
 | Transaction history | Full history for every user — sent and received |
 | React frontend | TypeScript, React Query, Tailwind CSS |
+| CI | GitHub Actions — lint, typecheck, tests, build on every push/PR |
 
 ---
 
@@ -49,7 +54,10 @@ Users hold wallets in SGD, MYR and THB and can send money to each other instantl
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
 | Data fetching | TanStack React Query |
 | Auth | JWT + bcrypt |
+| Payments | Stripe Checkout (test mode) |
 | Testing | Jest + Supertest |
+| Lint | ESLint (typescript-eslint) |
+| CI | GitHub Actions |
 | Container | Docker + docker-compose |
 | Deploy | Vercel (frontend) + Railway (backend + DB) |
 
@@ -78,7 +86,8 @@ PostgreSQL
         ├── ledger_entries   ← double-entry: DEBIT + CREDIT per transfer
         ├── fraud_checks     ← which rules fired on each transaction
         ├── audit_log        ← immutable event history
-        └── exchange_rates
+        ├── exchange_rates
+        └── topups           ← Stripe (test mode) wallet top-ups
 ```
 
 ---
@@ -89,7 +98,7 @@ When a user sends SGD 100 to someone in MYR:
 
 1. Frontend calls `POST /api/transactions/send` with JWT in header
 2. Auth middleware verifies JWT, extracts userId
-3. Fraud engine runs 5 rules — if any trigger, transaction is flagged and stops here
+3. Fraud engine runs 5 rules — if `LARGE_AMOUNT`, `HIGH_FREQUENCY`, or `LARGE_CROSS_BORDER` trigger, or `NEW_RECIPIENT` and `UNUSUAL_HOUR` trigger together, the transaction is flagged and stops here (see [Fraud detection rules](#fraud-detection-rules))
 4. PostgreSQL `BEGIN` — everything below is atomic
 5. Sender SGD wallet debited by 100 — ledger entry: DEBIT SGD 100
 6. Receiver MYR wallet credited by 345 (100 × 3.45) — ledger entry: CREDIT MYR 345
@@ -104,15 +113,18 @@ If the server crashes between steps 4 and 9, PostgreSQL rolls back everything. N
 
 ## Fraud detection rules
 
-| Rule | Trigger condition |
-|---|---|
-| LARGE_AMOUNT | Transaction exceeds SGD 5,000 equivalent |
-| UNUSUAL_HOUR | Transaction between 1 AM – 5 AM Singapore time |
-| NEW_RECIPIENT | First-ever transaction to this recipient |
-| HIGH_FREQUENCY | 5+ transactions sent in the last hour |
-| LARGE_CROSS_BORDER | Cross-border transfer exceeds SGD 2,000 |
+| Rule | Trigger condition | Blocks on its own? |
+|---|---|---|
+| LARGE_AMOUNT | Transaction exceeds SGD 5,000 equivalent | Yes |
+| HIGH_FREQUENCY | 5+ transactions sent in the last hour | Yes |
+| LARGE_CROSS_BORDER | Cross-border transfer exceeds SGD 2,000 | Yes |
+| NEW_RECIPIENT | First-ever transaction to this recipient | No — a first-time transfer is common and legitimate; the frontend shows a scam-awareness popup instead |
+| UNUSUAL_HOUR | Transaction between 1 AM – 5 AM Singapore time | No — off-hours activity to a recipient you've already paid is normal |
+| NEW_RECIPIENT + UNUSUAL_HOUR | Both trigger together | **Yes** — a first-time transfer sent during an unusual hour is the actual risk combination |
 
-When a transaction is flagged: status is set to `flagged`, no money moves, all rule results are recorded in `fraud_checks` for audit purposes.
+`LARGE_AMOUNT`, `HIGH_FREQUENCY`, and `LARGE_CROSS_BORDER` block a transaction independently, matching how real transaction-monitoring systems treat clear-cut thresholds. `NEW_RECIPIENT` and `UNUSUAL_HOUR` don't block alone — each is common in isolation — but combined they're the pattern real fraud engines flag (e.g. HSBC's transaction monitoring: an unusual time *combined with* an unfamiliar recipient, not either alone).
+
+When a transaction is flagged: status is set to `flagged`, no money moves, all rule results are recorded in `fraud_checks` for audit purposes. The sending account itself is never blocked — only that specific transaction.
 
 ---
 
@@ -120,13 +132,20 @@ When a transaction is flagged: status is set to `flagged`, no money moves, all r
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | /api/auth/register | No | Register new user |
+| POST | /api/auth/register | No | Register new user, returns a mocked email verification code |
+| POST | /api/auth/verify-email | No | Confirm the verification code, returns JWT |
 | POST | /api/auth/login | No | Login, returns JWT |
+| POST | /api/auth/forgot-password | No | Request a mocked password reset code |
+| POST | /api/auth/reset-password | No | Confirm the reset code and set a new password |
 | GET | /api/auth/me | Yes | Get current user |
 | GET | /api/wallet | Yes | Get all wallets |
+| POST | /api/wallet/convert | Yes | Convert between currencies |
 | GET | /api/transactions | Yes | Get transaction history |
 | POST | /api/transactions/send | Yes | Send money |
 | GET | /api/transactions/rates | Yes | Get exchange rates |
+| GET | /api/transactions/recipient-check | Yes | Check whether the given email is a first-time recipient |
+| POST | /api/topup/create-session | Yes | Create a Stripe Checkout session (test mode) to add credit |
+| POST | /api/topup/confirm | Yes | Confirm a completed Stripe session and credit the wallet |
 | GET | /api/audit/log | Yes | Get audit event log |
 | GET | /api/audit/ledger/:txId | Yes | Get ledger entries for a transaction |
 | GET | /api/audit/fraud/:txId | Yes | Get fraud check results for a transaction |
@@ -138,29 +157,37 @@ When a transaction is flagged: status is set to `flagged`, no money moves, all r
 
 ```
 miyupay/
+├── .github/workflows/ci.yml        # Lint, typecheck, test, build on push/PR
 ├── backend/
 │   ├── src/
 │   │   ├── types/index.ts          # All TypeScript domain types
-│   │   ├── models/schema.sql       # PostgreSQL schema — 7 tables
+│   │   ├── models/schema.sql       # PostgreSQL schema — 8 tables
 │   │   ├── services/
 │   │   │   ├── fraudService.ts     # 5 fraud detection rules
-│   │   │   └── transactionService.ts # Double-entry ledger logic
+│   │   │   ├── transactionService.ts # Double-entry ledger logic
+│   │   │   └── stripeService.ts    # Stripe client (test mode)
 │   │   ├── controllers/
 │   │   │   ├── authController.ts
-│   │   │   └── transactionController.ts
+│   │   │   ├── transactionController.ts
+│   │   │   └── topupController.ts  # Stripe Checkout session + confirm
 │   │   ├── middleware/
 │   │   │   ├── auth.ts             # JWT verification
+│   │   │   ├── validate.ts         # express-validator error handling
 │   │   │   └── errorHandler.ts     # Centralised error handling
 │   │   ├── routes/
 │   │   │   ├── auth.ts
 │   │   │   ├── transactions.ts
+│   │   │   ├── topup.ts
 │   │   │   └── walletAndAudit.ts
 │   │   ├── utils/
 │   │   │   ├── db.ts               # PostgreSQL pool
 │   │   │   └── helpers.ts          # Reference generator, formatters
+│   │   ├── tests/                  # Jest + Supertest integration tests
 │   │   ├── app.ts
 │   │   └── index.ts
 │   ├── Dockerfile
+│   ├── eslint.config.js
+│   ├── jest.config.json
 │   ├── tsconfig.json
 │   └── package.json
 ├── frontend/
@@ -170,18 +197,24 @@ miyupay/
 │   │   ├── hooks/useAuth.ts        # Auth state management
 │   │   ├── components/
 │   │   │   ├── layout/Layout.tsx   # Nav + page wrapper
-│   │   │   └── ui/                 # Reusable UI components
+│   │   │   └── ui/                 # Reusable UI components, incl. PasswordStrengthMeter
 │   │   ├── pages/
+│   │   │   ├── LandingPage.tsx
 │   │   │   ├── LoginPage.tsx
 │   │   │   ├── RegisterPage.tsx
+│   │   │   ├── ForgotPasswordPage.tsx
 │   │   │   ├── DashboardPage.tsx
+│   │   │   ├── ConvertPage.tsx
 │   │   │   ├── SendPage.tsx
 │   │   │   ├── TransactionsPage.tsx
-│   │   │   └── AuditPage.tsx
+│   │   │   ├── AuditPage.tsx
+│   │   │   ├── TopUpPage.tsx       # Stripe "Add credit" flow
+│   │   │   └── TopUpSuccessPage.tsx
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   └── index.css
 │   ├── index.html
+│   ├── eslint.config.js
 │   ├── vite.config.ts
 │   ├── tailwind.config.js
 │   ├── postcss.config.js
@@ -218,10 +251,12 @@ Quick start:
 # Backend
 cd backend && npm install && cp .env.example .env
 # Fill in DATABASE_URL and JWT_SECRET in .env
+# STRIPE_SECRET_KEY is optional — the app runs fine without it, /topup just
+# returns an error until you add a free Stripe test-mode key.
 npm run dev
 
 # Frontend (new terminal)
-cd frontend && npm install
+cd frontend && npm install && cp .env.example .env
 npm run dev
 ```
 
@@ -238,7 +273,13 @@ docker-compose up --build
 cd backend
 npm run test           # run all tests
 npm run test:coverage  # with coverage report
+npm run lint            # ESLint
+npm run typecheck       # tsc --noEmit
 ```
+
+Tests run against your local dev database (`DATABASE_URL` in `.env`) rather than a separate test database — there's no separate CREATEDB-privileged role assumed. Test data is namespaced under the `@test.miyupay.dev` email domain and is fully cleaned up after the run (`src/tests/globalTeardown.js`). `src/tests/globalSetup.js` also applies any schema changes that were added to `schema.sql` after your local DB was first created, since there's no migration tool in this repo — if you pull changes that touch `schema.sql`, running the tests once will bring your dev DB's schema up to date.
+
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, and build for both `backend` and `frontend` on every push/PR to `main`, using a fresh Postgres service container.
 
 ---
 

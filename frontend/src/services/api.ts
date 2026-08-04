@@ -22,9 +22,15 @@ api.interceptors.response.use(
 
 export const authService = {
   register: (data: { email: string; password: string; fullName: string; country: string }) =>
-    api.post<{ token: string; user: User }>('/auth/register', data).then(r => r.data),
+    api.post<{ user: User; verificationCode: string }>('/auth/register', data).then(r => r.data),
+  verifyEmail: (data: { email: string; code: string }) =>
+    api.post<{ token: string; user: User }>('/auth/verify-email', data).then(r => r.data),
   login: (data: { email: string; password: string }) =>
     api.post<{ token: string; user: User }>('/auth/login', data).then(r => r.data),
+  forgotPassword: (email: string) =>
+    api.post<{ resetCode: string }>('/auth/forgot-password', { email }).then(r => r.data),
+  resetPassword: (data: { email: string; code: string; newPassword: string }) =>
+    api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
   me: () =>
     api.get<User>('/auth/me').then(r => r.data),
 };
@@ -41,6 +47,8 @@ export const walletService = {
 export const transactionService = {
   getAll: () =>
     api.get<Transaction[]>('/transactions').then(r => r.data),
+  checkRecipient: (email: string) =>
+    api.get<{ isNewRecipient: boolean }>('/transactions/recipient-check', { params: { email } }).then(r => r.data),
   send: (data: {
     receiverEmail: string;
     senderCurrency: string;
@@ -52,6 +60,13 @@ export const transactionService = {
   ).then(r => r.data),
   getRates: () =>
     api.get<ExchangeRate[]>('/transactions/rates').then(r => r.data),
+};
+
+export const topupService = {
+  createSession: (amount: number) =>
+    api.post<{ url: string }>('/topup/create-session', { amount }).then(r => r.data),
+  confirm: (sessionId: string) =>
+    api.post<{ amount: number; balance: number }>('/topup/confirm', { sessionId }).then(r => r.data),
 };
 
 export const auditService = {

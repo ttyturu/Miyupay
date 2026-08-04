@@ -59,7 +59,7 @@ Pick one option. Railway is easier.
 - [ ] Connect using your DATABASE_URL
 - [ ] Open `backend/src/models/schema.sql`
 - [ ] Run the entire file — all tables, indexes, and seed data will be created
-- [ ] Verify: you should see tables — users, wallets, transactions, ledger_entries, audit_log, fraud_checks, exchange_rates
+- [ ] Verify: you should see tables — users, wallets, transactions, ledger_entries, audit_log, fraud_checks, exchange_rates, topups
 
 ---
 
@@ -91,7 +91,8 @@ Open Postman and test these — all should return responses:
     "country": "SGP"
   }
   ```
-  → Should return a token and user object
+  → Should return a `user` object and a `verificationCode` (no token yet — email isn't verified)
+- [ ] `POST http://localhost:3001/api/auth/verify-email` with `{ "email": "alice@test.com", "code": "<verificationCode from above>" }` → token returned
 - [ ] `POST http://localhost:3001/api/auth/login` with same email/password → token returned
 - [ ] Copy the token. `GET http://localhost:3001/api/wallet` with header `Authorization: Bearer YOUR_TOKEN` → 3 wallets returned (SGD 1000, MYR 3000, THB 25000)
 
@@ -139,21 +140,22 @@ Open Postman and test these — all should return responses:
 - [ ] Open a new terminal (keep backend running)
 - [ ] `cd frontend`
 - [ ] `npm install`
-- [ ] Create `frontend/.env.local`:
-  ```
-  VITE_API_URL=http://localhost:3001
-  ```
+- [ ] `cp .env.example .env` — fills in `VITE_API_URL` (and `VITE_STRIPE_PUBLISHABLE_KEY`, optional)
 - [ ] `npm run dev`
 - [ ] Open http://localhost:5173 in your browser
 
 ### Build these pages in order:
+- [ ] **LandingPage** — public marketing page at `/`, links to Login/Register
 - [ ] **LoginPage** — form, submits to `/api/auth/login`, stores token in localStorage, redirects to dashboard
-- [ ] **RegisterPage** — form, submits to `/api/auth/register`, same flow
-- [ ] **Layout** — nav bar with links: Dashboard, Send, Transactions, Audit Trail, Sign out
-- [ ] **DashboardPage** — fetches `/api/wallet`, shows 3 wallet cards with balances
+- [ ] **RegisterPage** — form, submits to `/api/auth/register`, then shows a verification-code popup (mocked — no real email sent) before logging in
+- [ ] **ForgotPasswordPage** — email form → `/api/auth/forgot-password` → shows a mocked reset code popup with a new-password field → `/api/auth/reset-password`
+- [ ] **Layout** — nav bar with links: Dashboard, Convert, Send, Transactions, Audit Trail, Sign out
+- [ ] **DashboardPage** — fetches `/api/wallet`, shows 3 wallet cards with balances, plus an "Add credit" link to `/topup`
+- [ ] **ConvertPage** — form: source/destination currency, amount. Calls `/api/wallet/convert`
 - [ ] **SendPage** — form: recipient email, currencies, amount, note. Shows live exchange rate preview. On submit, calls `/api/transactions/send`
 - [ ] **TransactionsPage** — fetches `/api/transactions`, lists all with reference code, status, amount
 - [ ] **AuditPage** — fetches `/api/audit/log`, shows event history for all transactions
+- [ ] **TopUpPage** / **TopUpSuccessPage** — Stripe Checkout (test mode) top-up flow
 
 For each page: build it, test it manually in browser, commit before moving to next.
 
@@ -179,29 +181,20 @@ The backend is already TypeScript. For the frontend:
 
 ---
 
-## Step 8 — Write tests
+## Step 8 — Tests (already scaffolded)
 
-### Backend tests (Jest)
-Create `backend/src/tests/` and write tests for:
+`backend/src/tests/` already exists with:
 
-- [ ] **auth.test.ts** — register, login, duplicate email, wrong password, missing fields
-- [ ] **transactions.test.ts** — send money, insufficient balance, self-transfer, invalid currency
-- [ ] **fraud.test.ts** — test each of the 5 fraud rules individually
-- [ ] **ledger.test.ts** — verify DEBIT + CREDIT entries are created, balances are correct
+- [x] **auth.test.ts** — register, verify-email, login, forgot-password/reset-password, duplicate email, wrong password, missing fields
+- [x] **transactions.test.ts** — send money, insufficient balance, self-transfer, unknown recipient, and the fraud-rule combinations (large amount, large cross-border, new-recipient + unusual-hour block, and that neither condition blocks on its own)
 
-Run: `npm run test:coverage` — aim for 70%+ coverage
+Tests run against your local dev database rather than a separate test DB (no CREATEDB privilege assumed) — test data is namespaced under `@test.miyupay.dev` and cleaned up automatically after each run. See `src/tests/globalSetup.js` / `globalTeardown.js`.
 
-The fraud service tests are the most impressive to show in interviews:
-```typescript
-// Example — test LARGE_AMOUNT rule in isolation
-it('flags transactions over SGD 5000', async () => {
-  const result = await runFraudChecks({ ..., senderAmount: 6000, senderCurrency: 'SGD' });
-  expect(result.flagged).toBe(true);
-  expect(result.rules.find(r => r.rule_name === 'LARGE_AMOUNT')?.triggered).toBe(true);
-});
-```
+Run: `npm run test:coverage`
 
-**Commit: `test: add fraud detection unit tests with 70%+ coverage`**
+If you add new features, add tests alongside them in this folder — `npm run test` already runs automatically in CI (`.github/workflows/ci.yml`) on every push/PR, so a broken test fails the build before it merges.
+
+**Commit: `test: add fraud detection tests covering the new-recipient + unusual-hour combo rule`**
 
 ---
 
@@ -299,9 +292,11 @@ Employers look at:
 |---|---|
 | TypeScript backend | Modern engineering standards, type safety |
 | PostgreSQL + double-entry ledger | Financial systems knowledge |
-| 5-rule fraud detection engine | AML/compliance awareness |
+| Risk-combination fraud detection engine | AML/compliance awareness — not just flat thresholds |
 | Immutable audit log | MAS regulatory awareness |
-| Jest tests with 70%+ coverage | Production engineering habits |
+| Jest + Supertest tests | Production engineering habits |
+| ESLint + GitHub Actions CI | Automated quality gates, not just "it works on my machine" |
+| Stripe (test mode) top-up flow | Real payment-integration experience |
 | Docker setup | DevOps awareness |
 | Live deployment | Can ship, not just build |
 | Clean GitHub with daily commits | Consistent, disciplined engineer |

@@ -11,6 +11,9 @@ CREATE TABLE users (
   full_name     VARCHAR(255) NOT NULL,
   country       VARCHAR(3) NOT NULL DEFAULT 'SGP', -- SGP | MYS | THA
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  is_verified   BOOLEAN NOT NULL DEFAULT FALSE,
+  verification_code VARCHAR(6),
+  reset_code    VARCHAR(6),
   created_at    TIMESTAMP DEFAULT NOW(),
   updated_at    TIMESTAMP DEFAULT NOW()
 );
@@ -107,6 +110,20 @@ CREATE TABLE fraud_checks (
   created_at     TIMESTAMP DEFAULT NOW()
 );
 
+-- ─── Top-ups (Stripe) ─────────────────────────────────────────────────────────
+-- Adding credit via Stripe Checkout (test mode). Not part of the double-entry
+-- ledger since the money originates outside the system.
+CREATE TABLE topups (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID NOT NULL REFERENCES users(id),
+  stripe_session_id  VARCHAR(255) UNIQUE NOT NULL,
+  currency           VARCHAR(3) NOT NULL,
+  amount             DECIMAL(18,6) NOT NULL CHECK (amount > 0),
+  status             VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | completed
+  created_at         TIMESTAMP DEFAULT NOW(),
+  completed_at       TIMESTAMP
+);
+
 -- ─── Indexes ──────────────────────────────────────────────────────────────────
 CREATE INDEX idx_transactions_sender   ON transactions(sender_id);
 CREATE INDEX idx_transactions_receiver ON transactions(receiver_id);
@@ -116,3 +133,4 @@ CREATE INDEX idx_ledger_transaction    ON ledger_entries(transaction_id);
 CREATE INDEX idx_audit_transaction     ON audit_log(transaction_id);
 CREATE INDEX idx_audit_user            ON audit_log(user_id);
 CREATE INDEX idx_wallets_user          ON wallets(user_id);
+CREATE INDEX idx_topups_user           ON topups(user_id);

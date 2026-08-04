@@ -63,6 +63,7 @@ export interface FraudResult {
   flagged: boolean;
   reason: string | null;
   rules: FraudCheck[];
+  isNewRecipient: boolean;
 }
 
 export interface ExchangeRate {

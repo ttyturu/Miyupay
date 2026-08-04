@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { EyeIcon, EyeSlashIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { EyeIcon, EyeSlashIcon, WarningCircleIcon, EnvelopeSimpleIcon } from '@phosphor-icons/react';
 import { authService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import Logo from '../components/ui/Logo';
+import PasswordStrengthMeter from '../components/ui/PasswordStrengthMeter';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -13,18 +14,39 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Mocked email verification — no real email is sent for this demo, the code
+  // is returned directly from the register call and shown on screen.
+  const [verificationCode, setVerificationCode] = useState<string | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       const data = await authService.register(form);
-      login(data.token, data.user);
-      navigate('/dashboard');
+      setVerificationCode(data.verificationCode);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError('');
+    setVerifying(true);
+    try {
+      const data = await authService.verifyEmail({ email: form.email, code: codeInput });
+      login(data.token, data.user);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setVerifyError(err.response?.data?.error || 'Verification failed');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -84,6 +106,7 @@ export default function RegisterPage() {
                   {showPassword ? <EyeSlashIcon size={18} /> : <EyeIcon size={18} />}
                 </button>
               </div>
+              <PasswordStrengthMeter password={form.password} />
             </div>
             <div>
               <label htmlFor="reg-country" className="block text-base font-medium text-muted-foreground mb-1">
@@ -118,6 +141,42 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
+
+      {verificationCode && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+          <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-sm w-full">
+            <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center mb-4">
+              <EnvelopeSimpleIcon size={26} weight="fill" className="text-secondary" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-1">Verify your email</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              This is a demo, so no real email was sent — here's your verification code:
+            </p>
+            <div className="bg-muted/50 rounded-lg p-3 text-center mb-4">
+              <span className="text-2xl font-mono font-bold tracking-widest text-foreground">{verificationCode}</span>
+            </div>
+            <form onSubmit={handleVerify} className="space-y-3">
+              <input
+                type="text" inputMode="numeric" maxLength={6} placeholder="Enter the 6-digit code" required
+                value={codeInput}
+                onChange={e => setCodeInput(e.target.value.replace(/\D/g, ''))}
+                className="w-full border border-border rounded-lg px-4 py-2.5 text-sm text-center font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-secondary"
+              />
+              {verifyError && (
+                <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
+                  <WarningCircleIcon size={14} weight="fill" /> {verifyError}
+                </p>
+              )}
+              <button
+                type="submit" disabled={verifying || codeInput.length !== 6}
+                className="w-full bg-gradient-to-r from-secondary to-accent text-white text-sm font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {verifying ? 'Verifying…' : 'Verify'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
