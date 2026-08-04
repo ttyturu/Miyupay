@@ -291,12 +291,4 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, and build for both 
 
 ---
 
-## What to add in Year 2
 
-After taking IS4000 (AI in Financial Services):
-
-Replace the rule-based fraud engine with a Python ML model trained on transaction patterns. Serve it as a FastAPI microservice and call it from the Node.js backend. At that point MiyuPay demonstrates both financial engineering fundamentals and applied AI — the highest-demand combination in Singapore fintech.
-
----
-
-_Built by an Information Systems student — Fintech Track — Singapore_
