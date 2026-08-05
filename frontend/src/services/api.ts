@@ -12,7 +12,11 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    // Only treat this as "session expired" if we actually had a token — a 401
+    // from a login/verify/reset attempt (no token yet) is just a normal form
+    // error and should stay on the page for the user to read, not reload it.
+    const hadToken = Boolean(localStorage.getItem('miyupay_token'));
+    if (err.response?.status === 401 && hadToken) {
       localStorage.clear();
       window.location.href = '/login';
     }
