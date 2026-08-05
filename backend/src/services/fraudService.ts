@@ -4,10 +4,13 @@ import { Currency, FraudCheck, FraudResult } from '../types';
 interface FraudContext {
   senderId: string;
   receiverId: string;
+  senderCurrency: Currency;
   senderAmount: number;
   senderAmountSGD: number;
   isCrossBorder: boolean;
 }
+
+const LARGE_AMOUNT_THRESHOLD_SGD = 5000;
 
 type Rule = {
   name: string;
@@ -18,12 +21,46 @@ const RULES: Rule[] = [
   {
     name: 'LARGE_AMOUNT',
     check: async ({ senderAmountSGD }) => {
-      const triggered = senderAmountSGD > 5000;
+      const triggered = senderAmountSGD > LARGE_AMOUNT_THRESHOLD_SGD;
       return {
         rule_name: 'LARGE_AMOUNT',
         triggered,
         details: triggered
           ? `Amount SGD ${senderAmountSGD.toFixed(2)} exceeds large transaction threshold of SGD 5,000`
+          : null,
+      };
+    },
+  },
+  {
+    // Structuring: several transfers to the same recipient, each individually
+    // under the LARGE_AMOUNT threshold, that sum above it within a short window.
+    // Splitting a transfer to dodge a threshold is evasive behavior, so this is
+    // weighted higher than any single standalone rule (see RULE_WEIGHTS below).
+    name: 'SPLIT_TRANSFERS',
+    check: async ({ senderId, receiverId, senderCurrency, senderAmount, senderAmountSGD }) => {
+      // Already caught by LARGE_AMOUNT on its own — no need to double-flag.
+      if (senderAmountSGD > LARGE_AMOUNT_THRESHOLD_SGD) {
+        return { rule_name: 'SPLIT_TRANSFERS', triggered: false, details: null };
+      }
+
+      const { rows } = await db.query<{ total: string | null }>(
+        `SELECT SUM(sender_amount) as total FROM transactions
+         WHERE sender_id = $1 AND receiver_id = $2 AND sender_currency = $3
+           AND created_at > NOW() - INTERVAL '1 hour'`,
+        [senderId, receiverId, senderCurrency]
+      );
+      const priorSameCurrency = parseFloat(rows[0].total ?? '0');
+      // Approximate: convert the combined same-currency total using this
+      // transaction's own SGD rate, since they share a currency.
+      const rateToSGD = senderAmount > 0 ? senderAmountSGD / senderAmount : 1;
+      const combinedSGD = (priorSameCurrency + senderAmount) * rateToSGD;
+
+      const triggered = combinedSGD > LARGE_AMOUNT_THRESHOLD_SGD;
+      return {
+        rule_name: 'SPLIT_TRANSFERS',
+        triggered,
+        details: triggered
+          ? `Multiple transfers to this recipient within the hour total SGD ${combinedSGD.toFixed(2)}, exceeding SGD 5,000`
           : null,
       };
     },
@@ -91,7 +128,18 @@ const RULES: Rule[] = [
 ];
 
 // Rules that block a transaction on their own, regardless of anything else.
-const INDEPENDENT_BLOCKING_RULES = ['LARGE_AMOUNT', 'HIGH_FREQUENCY', 'LARGE_CROSS_BORDER'];
+const INDEPENDENT_BLOCKING_RULES = ['LARGE_AMOUNT', 'HIGH_FREQUENCY', 'LARGE_CROSS_BORDER', 'SPLIT_TRANSFERS'];
+
+// Weighted severity used for the admin risk score (0-100). Reflects how strong
+// a fraud signal each rule is on its own — e.g. deliberately splitting a
+// transfer to dodge a threshold is a stronger signal than simply exceeding one.
+const RULE_WEIGHTS: Record<string, number> = {
+  LARGE_AMOUNT: 30,
+  HIGH_FREQUENCY: 35,
+  LARGE_CROSS_BORDER: 40,
+  SPLIT_TRANSFERS: 55,
+};
+const COMBO_WEIGHT = 60; // NEW_RECIPIENT + UNUSUAL_HOUR together
 
 export const runFraudChecks = async (params: {
   senderId: string;
@@ -112,7 +160,7 @@ export const runFraudChecks = async (params: {
     if (rows[0]) senderAmountSGD = senderAmount * parseFloat(rows[0].rate);
   }
 
-  const ctx: FraudContext = { senderId, receiverId, senderAmount, senderAmountSGD, isCrossBorder };
+  const ctx: FraudContext = { senderId, receiverId, senderCurrency, senderAmount, senderAmountSGD, isCrossBorder };
   const results = await Promise.all(RULES.map(r => r.check(ctx)));
 
   const newRecipient = results.find(r => r.rule_name === 'NEW_RECIPIENT');
@@ -133,10 +181,17 @@ export const runFraudChecks = async (params: {
     reasons.push(newRecipient!.details!, unusualHour!.details!);
   }
 
+  const riskScore = Math.min(
+    100,
+    independentlyTriggered.reduce((sum, r) => sum + (RULE_WEIGHTS[r.rule_name] ?? 0), 0)
+      + (comboBlock ? COMBO_WEIGHT : 0)
+  );
+
   return {
     flagged,
     reason: flagged ? reasons.join('; ') : null,
     rules: results,
     isNewRecipient: newRecipient?.triggered ?? false,
+    riskScore,
   };
 };

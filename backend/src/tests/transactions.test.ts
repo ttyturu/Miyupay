@@ -155,6 +155,76 @@ describe('POST /api/transactions/send', () => {
     } finally { unfreeze(); }
   });
 
+  it('stores a risk_score reflecting the weighted severity of the triggered rule', async () => {
+    freezeAt(NORMAL_HOUR_SGT);
+    try {
+      const sender = await registerAndVerify();
+      const receiver = await registerAndVerify();
+      const res = await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 6000 });
+
+      expect(res.body.flagged).toBe(true);
+      expect(res.body.transaction.risk_score).toBe(30); // LARGE_AMOUNT weight
+    } finally { unfreeze(); }
+  });
+
+  it('blocks structured transfers that split above the large-amount threshold (SPLIT_TRANSFERS rule)', async () => {
+    freezeAt(NORMAL_HOUR_SGT);
+    try {
+      const sender = await registerAndVerify();
+      const receiver = await registerAndVerify();
+      // Starter SGD balance (1000) isn't enough to actually send 4,000 of the
+      // 6,000 total before the flag trips — top it up directly for this test.
+      await db.query(`UPDATE wallets SET balance = 10000 WHERE user_id = $1 AND currency = 'SGD'`, [sender.user.id]);
+
+      // Each transfer alone stays under the SGD 5,000 LARGE_AMOUNT threshold.
+      const first = await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 2000 });
+      expect(first.body.flagged).toBe(false);
+
+      const second = await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 2000 });
+      expect(second.body.flagged).toBe(false);
+
+      // Third transfer pushes the 1-hour total (6,000) over the threshold.
+      const third = await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 2000 });
+
+      expect(third.status).toBe(201);
+      expect(third.body.flagged).toBe(true);
+      expect(third.body.transaction.fraud_reason).toMatch(/multiple transfers/i);
+      expect(third.body.transaction.risk_score).toBe(55); // SPLIT_TRANSFERS weight
+    } finally { unfreeze(); }
+  });
+
+  it('still catches structuring when the splitting sends race each other concurrently', async () => {
+    freezeAt(NORMAL_HOUR_SGT);
+    try {
+      const sender = await registerAndVerify();
+      const receiver = await registerAndVerify();
+      await db.query(`UPDATE wallets SET balance = 10000 WHERE user_id = $1 AND currency = 'SGD'`, [sender.user.id]);
+
+      // Fire three sends at once instead of sequentially — without the
+      // sender-row lock in processTransaction, each one's fraud check could
+      // run against the same "before" state and none of them would see the
+      // others' amounts, letting the combined total slip past SPLIT_TRANSFERS
+      // undetected. With the lock, they're serialized, so whichever one lands
+      // last in DB order sees the others already committed.
+      const sendOne = () => request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 2000 });
+
+      const [r1, r2, r3] = await Promise.all([sendOne(), sendOne(), sendOne()]);
+
+      const flaggedCount = [r1, r2, r3].filter(r => r.body.flagged).length;
+      expect(flaggedCount).toBeGreaterThanOrEqual(1);
+    } finally { unfreeze(); }
+  });
+
   it('blocks a first-time recipient combined with an unusual hour', async () => {
     freezeAt(UNUSUAL_HOUR_SGT);
     try {
@@ -169,6 +239,24 @@ describe('POST /api/transactions/send', () => {
       expect(res.body.transaction.status).toBe('flagged');
       expect(res.body.transaction.fraud_reason).toMatch(/first transaction/i);
       expect(res.body.transaction.fraud_reason).toMatch(/unusual hour/i);
+    } finally { unfreeze(); }
+  });
+});
+
+describe('Frozen account (kill switch)', () => {
+  it('blocks sending money once the sender has frozen their own account', async () => {
+    freezeAt(NORMAL_HOUR_SGT);
+    try {
+      const sender = await registerAndVerify();
+      const receiver = await registerAndVerify();
+
+      await request(app).post('/api/auth/freeze').set('Authorization', `Bearer ${sender.token}`);
+
+      const res = await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiver.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 10 });
+
+      expect(res.status).toBe(403);
     } finally { unfreeze(); }
   });
 });

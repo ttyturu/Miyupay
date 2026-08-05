@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../utils/db';
 import { processTransaction } from '../services/transactionService';
-import { Currency } from '../types';
+import { Currency, TransferActivity, TopupActivity, ActivityItem } from '../types';
+import { sortActivity } from '../utils/activity';
 
 export const send = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -61,8 +62,8 @@ export const getRecentRecipients = async (req: Request, res: Response, next: Nex
 
 export const getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { rows } = await db.query(
-      `SELECT t.*,
+    const { rows: transactions } = await db.query<TransferActivity>(
+      `SELECT t.*, 'transfer' AS type,
               s.full_name AS sender_name, s.email AS sender_email,
               r.full_name AS receiver_name, r.email AS receiver_email
        FROM transactions t
@@ -72,7 +73,17 @@ export const getAll = async (req: Request, res: Response, next: NextFunction): P
        ORDER BY t.created_at DESC LIMIT 50`,
       [req.user!.userId]
     );
-    res.json(rows);
+    const { rows: topups } = await db.query<TopupActivity>(
+      `SELECT tp.*, 'topup' AS type, u.full_name AS user_full_name, u.email AS user_email
+       FROM topups tp
+       JOIN users u ON tp.user_id = u.id
+       WHERE tp.user_id=$1
+       ORDER BY tp.created_at DESC LIMIT 50`,
+      [req.user!.userId]
+    );
+
+    const merged: ActivityItem[] = sortActivity([...transactions, ...topups]).slice(0, 50);
+    res.json(merged);
   } catch (err) { next(err); }
 };
 

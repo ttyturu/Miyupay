@@ -120,22 +120,38 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {recent.map(tx => {
-            const isSender = tx.sender_id === user?.id;
-            const currency = isSender ? tx.sender_currency : tx.receiver_currency;
-            const amount   = isSender ? tx.sender_amount  : tx.receiver_amount;
-            const counterpartyName = isSender ? tx.receiver_name : tx.sender_name;
+          {recent.map(item => {
+            if (item.type === 'topup') return (
+              <div key={item.id} className="bg-card border border-border rounded-lg shadow-sm px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                    <PlusCircleIcon size={18} weight="fill" className="text-success" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">
+                    Top-up via Stripe{item.status === 'pending' ? ' (pending)' : ''}
+                  </p>
+                </div>
+                <span className="text-sm font-mono font-semibold tabular-nums text-success">
+                  +{SYMBOLS[item.currency]}{Number(item.amount).toFixed(2)}
+                </span>
+              </div>
+            );
+
+            const isSender = item.sender_id === user?.id;
+            const currency = isSender ? item.sender_currency : item.receiver_currency;
+            const amount   = isSender ? item.sender_amount  : item.receiver_amount;
+            const counterpartyName = isSender ? item.receiver_name : item.sender_name;
             return (
-              <div key={tx.id} className="bg-card border border-border rounded-lg shadow-sm px-4 py-3 flex items-center justify-between">
+              <div key={item.id} className="bg-card border border-border rounded-lg shadow-sm px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar name={counterpartyName} />
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {isSender ? `To ${tx.receiver_name}` : `From ${tx.sender_name}`}
+                      {isSender ? `To ${item.receiver_name}` : `From ${item.sender_name}`}
                     </p>
                     <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 font-mono">
-                      {tx.reference_code}
-                      {tx.fraud_flagged && (
+                      {item.reference_code}
+                      {item.fraud_flagged && (
                         <span className="ml-2 flex items-center gap-0.5 text-warning font-sans">
                           <WarningCircleIcon size={12} weight="fill" /> flagged
                         </span>
@@ -144,9 +160,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <span className={`text-sm font-mono font-semibold tabular-nums ${
-                  tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
+                  item.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
                 }`}>
-                  {tx.status === 'completed' ? (isSender ? '-' : '+') : ''}{SYMBOLS[currency]}{Number(amount).toFixed(2)}
+                  {item.status === 'completed' ? (isSender ? '-' : '+') : ''}{SYMBOLS[currency]}{Number(amount).toFixed(2)}
                 </span>
               </div>
             );

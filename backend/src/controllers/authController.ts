@@ -55,7 +55,10 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
     );
 
     const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email, fullName: user.full_name, country: user.country } });
+    res.json({
+      token,
+      user: { id: user.id, email: user.email, fullName: user.full_name, country: user.country, role: user.role, frozen: user.frozen },
+    });
   } catch (err) { next(err); }
 };
 
@@ -69,7 +72,10 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       res.status(401).json({ error: 'Invalid email or password' }); return;
     }
     const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email, fullName: user.full_name, country: user.country } });
+    res.json({
+      token,
+      user: { id: user.id, email: user.email, fullName: user.full_name, country: user.country, role: user.role, frozen: user.frozen },
+    });
   } catch (err) { next(err); }
 };
 
@@ -111,9 +117,20 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
 export const me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { rows: [user] } = await db.query<User>(
-      'SELECT id,email,full_name,country,created_at FROM users WHERE id=$1', [req.user!.userId]
+      'SELECT id,email,full_name,country,role,frozen FROM users WHERE id=$1', [req.user!.userId]
     );
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-    res.json(user);
+    res.json({ id: user.id, email: user.email, fullName: user.full_name, country: user.country, role: user.role, frozen: user.frozen });
+  } catch (err) { next(err); }
+};
+
+// Self-service "kill switch" — the account holder freezes their own account
+// instantly if they suspect it's compromised. Only an admin can lift it
+// (see adminController.unfreezeUser) — letting the same session unfreeze it
+// immediately would defeat the point if that session is the attacker's.
+export const freezeAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await db.query('UPDATE users SET frozen=TRUE WHERE id=$1', [req.user!.userId]);
+    res.json({ message: 'Your account has been frozen. Contact support to have it unfrozen.' });
   } catch (err) { next(err); }
 };

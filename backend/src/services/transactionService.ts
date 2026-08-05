@@ -23,7 +23,23 @@ export const processTransaction = async (params: SendParams): Promise<SendResult
   const client = await db.pool.connect();
 
   try {
-    // 1. Validate receiver
+    await client.query('BEGIN');
+
+    // 1. Lock the sender's row for the rest of this transaction — this
+    // serializes concurrent sends from the same sender, closing a race where
+    // two nearly-simultaneous sends could each run fraud checks (SPLIT_TRANSFERS,
+    // HIGH_FREQUENCY, NEW_RECIPIENT) against the same "before" state and both
+    // slip through a pattern that only trips the rule when considered together.
+    // Also covers the frozen check (self-service kill switch — only an admin can lift it).
+    const { rows: senderRows } = await client.query<{ frozen: boolean }>(
+      'SELECT frozen FROM users WHERE id = $1 FOR UPDATE',
+      [senderId]
+    );
+    if (senderRows[0]?.frozen) {
+      throw Object.assign(new Error('Your account is frozen. Contact support to have it unfrozen.'), { status: 403 });
+    }
+
+    // 2. Validate receiver
     const { rows: receiverRows } = await client.query<{ id: string; full_name: string }>(
       'SELECT id, full_name FROM users WHERE email = $1 AND is_active = TRUE',
       [receiverEmail]
@@ -32,7 +48,7 @@ export const processTransaction = async (params: SendParams): Promise<SendResult
     const receiver = receiverRows[0];
     if (receiver.id === senderId) throw Object.assign(new Error('Cannot send to yourself'), { status: 400 });
 
-    // 2. Get exchange rate
+    // 3. Get exchange rate
     const { rows: rateRows } = await client.query<{ rate: string }>(
       'SELECT rate FROM exchange_rates WHERE from_currency = $1 AND to_currency = $2',
       [senderCurrency, receiverCurrency]
@@ -43,11 +59,10 @@ export const processTransaction = async (params: SendParams): Promise<SendResult
     const receiverAmount = parseFloat((amount * exchangeRate).toFixed(6));
     const isCrossBorder = senderCurrency !== receiverCurrency;
 
-    // 3. Run fraud checks before touching money
+    // 4. Run fraud checks before touching money — safe to read counts/sums
+    // here since the row lock above already serialized us against any other
+    // concurrent send from this same sender.
     const fraud = await runFraudChecks({ senderId, receiverId: receiver.id, senderAmount: amount, senderCurrency, isCrossBorder });
-
-    // 4. Begin atomic DB transaction
-    await client.query('BEGIN');
 
     const reference = generateReference();
     const status: TxStatus = fraud.flagged ? 'flagged' : 'processing';
@@ -56,11 +71,11 @@ export const processTransaction = async (params: SendParams): Promise<SendResult
       `INSERT INTO transactions
         (reference_code,sender_id,receiver_id,sender_currency,receiver_currency,
          sender_amount,receiver_amount,exchange_rate,is_cross_border,
-         status,fraud_flagged,fraud_reason,note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+         status,fraud_flagged,fraud_reason,risk_score,note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [reference, senderId, receiver.id, senderCurrency, receiverCurrency,
        amount, receiverAmount, exchangeRate, isCrossBorder,
-       status, fraud.flagged, fraud.reason, note ?? null]
+       status, fraud.flagged, fraud.reason, fraud.riskScore, note ?? null]
     );
 
     // Log which fraud rules fired

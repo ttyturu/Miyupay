@@ -4,12 +4,15 @@ export type Currency = 'SGD' | 'MYR' | 'THB';
 export type Country  = 'SGP' | 'MYS' | 'THA';
 export type TxStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'flagged';
 export type EntryType = 'DEBIT' | 'CREDIT';
+export type Role = 'user' | 'admin';
 
 export interface User {
   id: string;
   email: string;
   full_name: string;
   country: Country;
+  role: Role;
+  frozen: boolean;
   is_active: boolean;
   created_at: Date;
 }
@@ -19,6 +22,7 @@ export interface Wallet {
   user_id: string;
   currency: Currency;
   balance: number;
+  is_system: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -37,6 +41,7 @@ export interface Transaction {
   status: TxStatus;
   fraud_flagged: boolean;
   fraud_reason: string | null;
+  risk_score: number;
   note: string | null;
   created_at: Date;
   completed_at: Date | null;
@@ -44,13 +49,30 @@ export interface Transaction {
 
 export interface LedgerEntry {
   id: string;
-  transaction_id: string;
+  transaction_id: string | null;
+  topup_id: string | null;
   wallet_id: string;
   entry_type: EntryType;
   currency: Currency;
   amount: number;
   balance_after: number;
   created_at: Date;
+}
+
+export type TopupStatus = 'pending' | 'completed';
+
+export interface Topup {
+  id: string;
+  user_id: string;
+  stripe_session_id: string;
+  currency: Currency;
+  amount: number;
+  status: TopupStatus;
+  fraud_flagged: boolean;
+  fraud_reason: string | null;
+  risk_score: number;
+  created_at: Date;
+  completed_at: Date | null;
 }
 
 export interface FraudCheck {
@@ -64,7 +86,26 @@ export interface FraudResult {
   reason: string | null;
   rules: FraudCheck[];
   isNewRecipient: boolean;
+  riskScore: number;
 }
+
+// Merged activity feed — a transfer and a top-up rendered in one chronological
+// list (Transactions page, Dashboard recent activity, admin lookup/flagged).
+export interface TransferActivity extends Transaction {
+  type: 'transfer';
+  sender_name: string;
+  sender_email: string;
+  receiver_name: string;
+  receiver_email: string;
+}
+
+export interface TopupActivity extends Topup {
+  type: 'topup';
+  user_full_name: string;
+  user_email: string;
+}
+
+export type ActivityItem = TransferActivity | TopupActivity;
 
 export interface ExchangeRate {
   from_currency: Currency;

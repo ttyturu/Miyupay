@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, Wallet, Transaction, ExchangeRate, AuditEntry, LedgerEntry, FraudCheck } from '../types';
+import { User, Wallet, Transaction, ExchangeRate, LedgerEntry, FraudCheck, AdminUser, ActivityItem } from '../types';
 
 const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL}/api`, timeout: 10_000 });
 
@@ -37,6 +37,8 @@ export const authService = {
     api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
   me: () =>
     api.get<User>('/auth/me').then(r => r.data),
+  freeze: () =>
+    api.post<{ message: string }>('/auth/freeze').then(r => r.data),
 };
 
 export const walletService = {
@@ -50,7 +52,7 @@ export const walletService = {
 
 export const transactionService = {
   getAll: () =>
-    api.get<Transaction[]>('/transactions').then(r => r.data),
+    api.get<ActivityItem[]>('/transactions').then(r => r.data),
   checkRecipient: (email: string) =>
     api.get<{ isNewRecipient: boolean }>('/transactions/recipient-check', { params: { email } }).then(r => r.data),
   getRecentRecipients: () =>
@@ -75,13 +77,27 @@ export const topupService = {
     api.post<{ amount: number; balance: number }>('/topup/confirm', { sessionId }).then(r => r.data),
 };
 
-export const auditService = {
-  getLog: () =>
-    api.get<AuditEntry[]>('/audit/log').then(r => r.data),
-  getLedger: (txId: string) =>
-    api.get<LedgerEntry[]>(`/audit/ledger/${txId}`).then(r => r.data),
-  getFraud: (txId: string) =>
-    api.get<FraudCheck[]>(`/audit/fraud/${txId}`).then(r => r.data),
+export const adminService = {
+  searchUsers: (q: string) =>
+    api.get<{ email: string; fullName: string }[]>('/admin/users/search', { params: { q } }).then(r => r.data),
+  getUserAudit: (email: string) =>
+    api.get<{ user: AdminUser; activity: ActivityItem[]; aggregateRisk: number }>(
+      `/admin/users/${encodeURIComponent(email)}/audit`
+    ).then(r => r.data),
+  getUserSummary: (email: string) =>
+    api.get<{ summary: string }>(`/admin/users/${encodeURIComponent(email)}/summary`).then(r => r.data),
+  getFlagged: (sort: 'recent' | 'risk') =>
+    api.get<ActivityItem[]>('/admin/flagged', { params: { sort } }).then(r => r.data),
+  freezeUser: (email: string, password: string) =>
+    api.post<{ email: string; frozen: boolean }>(`/admin/users/${encodeURIComponent(email)}/freeze`, { password }).then(r => r.data),
+  unfreezeUser: (email: string, password: string) =>
+    api.post<{ email: string; frozen: boolean }>(`/admin/users/${encodeURIComponent(email)}/unfreeze`, { password }).then(r => r.data),
+  getTransactionLedger: (txId: string) =>
+    api.get<LedgerEntry[]>(`/admin/transactions/${txId}/ledger`).then(r => r.data),
+  getTransactionFraud: (txId: string) =>
+    api.get<FraudCheck[]>(`/admin/transactions/${txId}/fraud`).then(r => r.data),
+  getTopupLedger: (topupId: string) =>
+    api.get<LedgerEntry[]>(`/admin/topups/${topupId}/ledger`).then(r => r.data),
 };
 
 export default api;

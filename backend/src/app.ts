@@ -5,7 +5,8 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import topupRoutes from './routes/topup';
-import { walletRouter, auditRouter } from './routes/walletAndAudit';
+import adminRoutes from './routes/admin';
+import { walletRouter } from './routes/wallet';
 import { errorHandler } from './middleware/errorHandler';
 import { db } from './utils/db';
 
@@ -28,8 +29,8 @@ app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/auth',         authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/wallet',       walletRouter);
-app.use('/api/audit',        auditRouter);
 app.use('/api/topup',        topupRoutes);
+app.use('/api/admin',        adminRoutes);
 
 app.get('/api/health', async (_req, res) => {
   try {

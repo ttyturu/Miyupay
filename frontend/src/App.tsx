@@ -8,14 +8,22 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import SendPage from './pages/SendPage';
 import TransactionsPage from './pages/TransactionsPage';
-import AuditPage from './pages/AuditPage';
 import ConvertPage from './pages/ConvertPage';
 import TopUpPage from './pages/TopUpPage';
 import TopUpSuccessPage from './pages/TopUpSuccessPage';
+import AccountPage from './pages/AccountPage';
+import AdminPage from './pages/AdminPage';
+import AdminFlaggedPage from './pages/AdminFlaggedPage';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { token } = useAuth();
   return token ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { token, user } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  return user?.role === 'admin' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 };
 
 export default function App() {
@@ -35,9 +43,11 @@ export default function App() {
         <Route path="convert"       element={<ConvertPage />} />
         <Route path="send"          element={<SendPage />} />
         <Route path="transactions"  element={<TransactionsPage />} />
-        <Route path="audit"         element={<AuditPage />} />
         <Route path="topup"         element={<TopUpPage />} />
         <Route path="topup/success" element={<TopUpSuccessPage />} />
+        <Route path="account"       element={<AccountPage />} />
+        <Route path="admin"         element={<AdminRoute><AdminPage /></AdminRoute>} />
+        <Route path="admin/flagged" element={<AdminRoute><AdminFlaggedPage /></AdminRoute>} />
       </Route>
     </Routes>
   );

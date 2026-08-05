@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { register, login, me, verifyEmail, forgotPassword, resetPassword } from '../controllers/authController';
+import { register, login, me, verifyEmail, forgotPassword, resetPassword, freezeAccount } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 
@@ -38,5 +38,6 @@ router.post('/reset-password', [
 ], resetPassword);
 
 router.get('/me', authenticate, me);
+router.post('/freeze', authenticate, freezeAccount);
 
 export default router;

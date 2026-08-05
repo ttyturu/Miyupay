@@ -164,3 +164,20 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('POST /api/auth/freeze', () => {
+  it('rejects unauthenticated requests', async () => {
+    const res = await request(app).post('/api/auth/freeze');
+    expect(res.status).toBe(401);
+  });
+
+  it('freezes the caller\'s own account', async () => {
+    const { token } = await registerAndVerify();
+
+    const res = await request(app).post('/api/auth/freeze').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+
+    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(me.body.frozen).toBe(true);
+  });
+});

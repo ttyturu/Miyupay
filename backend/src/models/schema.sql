@@ -10,6 +10,8 @@ CREATE TABLE users (
   password_hash VARCHAR(255) NOT NULL,
   full_name     VARCHAR(255) NOT NULL,
   country       VARCHAR(3) NOT NULL DEFAULT 'SGP', -- SGP | MYS | THA
+  role          VARCHAR(10) NOT NULL DEFAULT 'user', -- user | admin — admin is granted manually, no self-serve UI
+  frozen        BOOLEAN NOT NULL DEFAULT FALSE, -- self-service "kill switch"; only an admin can lift it
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   is_verified   BOOLEAN NOT NULL DEFAULT FALSE,
   verification_code VARCHAR(6),
@@ -25,11 +27,29 @@ CREATE TABLE wallets (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   currency   VARCHAR(3) NOT NULL,           -- SGD | MYR | THB
-  balance    DECIMAL(18,6) NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  balance    DECIMAL(18,6) NOT NULL DEFAULT 0,
+  is_system  BOOLEAN NOT NULL DEFAULT FALSE, -- the clearing wallet below; legitimately runs negative
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE (user_id, currency)
+  UNIQUE (user_id, currency),
+  CHECK (balance >= 0 OR is_system)
 );
+
+-- ─── Clearing account (Stripe) ───────────────────────────────────────────────
+-- A reserved system account, not a real user — never logs in, never appears in
+-- admin search. Its SGD wallet is the double-entry counterparty for top-ups:
+-- confirming a top-up DEBITs this wallet and CREDITs the user's, exactly like
+-- a transfer, instead of a bare balance increment with no ledger trail.
+-- Fixed id so the backend can look it up without a join. The password hash
+-- below is a real bcrypt hash of an unpublished, unused string — this account
+-- has no working password and cannot log in through the normal auth flow.
+INSERT INTO users (id, email, password_hash, full_name, role, is_verified) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'system.clearing@miyupay.internal',
+   '$2a$12$DuxRLhp6/YnkLJqPmtgMu.9tj/iTacYD/3wCC0t8IrtK7CREhaDCW',
+   'MiyuPay Clearing (Stripe)', 'user', TRUE);
+
+INSERT INTO wallets (user_id, currency, balance, is_system) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'SGD', 0, TRUE);
 
 -- ─── Exchange rates ───────────────────────────────────────────────────────────
 CREATE TABLE exchange_rates (
@@ -64,25 +84,50 @@ CREATE TABLE transactions (
   status            VARCHAR(20) NOT NULL DEFAULT 'pending',
   fraud_flagged     BOOLEAN NOT NULL DEFAULT FALSE,
   fraud_reason      TEXT,
+  risk_score        INT NOT NULL DEFAULT 0, -- 0-100, weighted sum of triggered fraud rules
   note              TEXT,
   created_at        TIMESTAMP DEFAULT NOW(),
   completed_at      TIMESTAMP,
   CHECK (sender_id != receiver_id)
 );
 
+-- ─── Top-ups (Stripe) ─────────────────────────────────────────────────────────
+-- Adding credit via Stripe Checkout (test mode). Money originates outside the
+-- system (a card, not another user), so it posts against the clearing wallet
+-- below rather than another user's wallet — see Ledger entries.
+CREATE TABLE topups (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID NOT NULL REFERENCES users(id),
+  stripe_session_id  VARCHAR(255) UNIQUE NOT NULL,
+  currency           VARCHAR(3) NOT NULL,
+  amount             DECIMAL(18,6) NOT NULL CHECK (amount > 0),
+  status             VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | completed
+  fraud_flagged      BOOLEAN NOT NULL DEFAULT FALSE,
+  fraud_reason       TEXT,
+  risk_score         INT NOT NULL DEFAULT 0, -- 0-100; currently only TOPUP_VELOCITY
+  created_at         TIMESTAMP DEFAULT NOW(),
+  completed_at       TIMESTAMP
+);
+
 -- ─── Ledger entries ───────────────────────────────────────────────────────────
 -- Double-entry: every transaction produces exactly 2 entries
 -- One DEBIT (money leaves sender), one CREDIT (money arrives at receiver)
 -- This is how every regulated financial institution tracks money
+--
+-- A top-up posts here too, now that money entering from Stripe has a real
+-- counterparty: DEBIT the clearing wallet below, CREDIT the user's wallet.
+-- Every entry belongs to exactly one of transaction_id / topup_id, never both.
 CREATE TABLE ledger_entries (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  transaction_id UUID NOT NULL REFERENCES transactions(id),
+  transaction_id UUID REFERENCES transactions(id),
+  topup_id       UUID REFERENCES topups(id),
   wallet_id      UUID NOT NULL REFERENCES wallets(id),
   entry_type     VARCHAR(6) NOT NULL CHECK (entry_type IN ('DEBIT','CREDIT')),
   currency       VARCHAR(3) NOT NULL,
   amount         DECIMAL(18,6) NOT NULL CHECK (amount > 0),
   balance_after  DECIMAL(18,6) NOT NULL,   -- snapshot of balance after this entry
-  created_at     TIMESTAMP DEFAULT NOW()
+  created_at     TIMESTAMP DEFAULT NOW(),
+  CHECK ((transaction_id IS NOT NULL) <> (topup_id IS NOT NULL))
 );
 
 -- ─── Audit log ────────────────────────────────────────────────────────────────
@@ -108,20 +153,6 @@ CREATE TABLE fraud_checks (
   triggered      BOOLEAN NOT NULL,
   details        TEXT,
   created_at     TIMESTAMP DEFAULT NOW()
-);
-
--- ─── Top-ups (Stripe) ─────────────────────────────────────────────────────────
--- Adding credit via Stripe Checkout (test mode). Not part of the double-entry
--- ledger since the money originates outside the system.
-CREATE TABLE topups (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id            UUID NOT NULL REFERENCES users(id),
-  stripe_session_id  VARCHAR(255) UNIQUE NOT NULL,
-  currency           VARCHAR(3) NOT NULL,
-  amount             DECIMAL(18,6) NOT NULL CHECK (amount > 0),
-  status             VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | completed
-  created_at         TIMESTAMP DEFAULT NOW(),
-  completed_at       TIMESTAMP
 );
 
 -- ─── Indexes ──────────────────────────────────────────────────────────────────

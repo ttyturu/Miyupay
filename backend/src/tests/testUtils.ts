@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app from '../app';
+import { db } from '../utils/db';
 
 let counter = 0;
 export const uniqueEmail = (prefix = 'user'): string => {
@@ -39,4 +40,10 @@ export const registerAndVerify = async (overrides: Partial<{
   }
 
   return { token: verifyRes.body.token, user: verifyRes.body.user };
+};
+
+// There's no self-serve "become admin" flow — in production this is a manual
+// DB update, so tests mirror that directly rather than going through the API.
+export const makeAdmin = async (userId: string): Promise<void> => {
+  await db.query('UPDATE users SET role=$1 WHERE id=$2', ['admin', userId]);
 };
