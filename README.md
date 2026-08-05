@@ -2,7 +2,7 @@
 
 A full-stack wallet-based digital payment platform built with TypeScript, Node.js, React and PostgreSQL. Inspired by Singapore's PayNow and MAS Project Nexus cross-border payment infrastructure.
 
-**Live demo:** _add your Vercel URL here after deployment_
+**Live demo:** https://miyupay.vercel.app
 
 ---
 
@@ -59,7 +59,7 @@ Users hold wallets in SGD, MYR and THB and can send money to each other instantl
 | Lint | ESLint (typescript-eslint) |
 | CI | GitHub Actions |
 | Container | Docker + docker-compose |
-| Deploy | Vercel (frontend) + Railway (backend + DB) |
+| Deploy | Vercel (frontend) + Render (backend) + Supabase (PostgreSQL) |
 
 ---
 
@@ -285,9 +285,9 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, and build for both 
 
 ## Deployment
 
-- Frontend → [Vercel](https://vercel.com) — connect GitHub repo, set root to `/frontend`
-- Backend → [Railway](https://railway.app) — connect GitHub repo, set root to `/backend`
-- Database → Railway PostgreSQL — paste `DATABASE_URL` into backend environment variables
+- Frontend → [Vercel](https://vercel.com) — connect GitHub repo, set root to `/frontend`. Needs `frontend/vercel.json` (already in the repo) for client-side routing to work — without it, direct links to routes like `/login` 404.
+- Backend → [Render](https://render.com) — connect GitHub repo, set root to `/backend`, deploy via the existing `Dockerfile`. Set environment variables from `backend/.env.example` (`DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` — must be the deployed Vercel URL, not `localhost`, or CORS will block requests — `STRIPE_SECRET_KEY`, `NODE_ENV=production`).
+- Database → [Supabase](https://supabase.com) PostgreSQL — paste its connection string into `DATABASE_URL` on Render. Supabase's SQL Editor can be used to run `backend/src/models/schema.sql` directly, and to apply any later schema changes manually — there's no migration tool in this repo, so if `schema.sql` changes after your database was first created, the new `ALTER TABLE`/`CREATE TABLE` statements need to be run against Supabase by hand.
 
 ---
 
