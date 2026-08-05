@@ -22,7 +22,7 @@ Users hold wallets in SGD, MYR and THB and can send money to each other instantl
 | Password strength meter | Live feedback while typing on the register and reset-password forms |
 | Multi-currency wallets | SGD, MYR, THB — auto-created on registration |
 | Add credit | Stripe Checkout (test mode) top-up flow for the SGD wallet |
-| Send money | Instant transfer with live exchange rate preview |
+| Send money | Instant transfer with live exchange rate preview and recent-recipient autocomplete |
 | Double-entry ledger | Every transfer creates a DEBIT + CREDIT — money cannot be created or lost |
 | Fraud detection | 5 rules run before every payment — flags suspicious transactions before money moves |
 | Immutable audit log | Every state change recorded permanently — append-only |
@@ -144,6 +144,7 @@ When a transaction is flagged: status is set to `flagged`, no money moves, all r
 | POST | /api/transactions/send | Yes | Send money |
 | GET | /api/transactions/rates | Yes | Get exchange rates |
 | GET | /api/transactions/recipient-check | Yes | Check whether the given email is a first-time recipient |
+| GET | /api/transactions/recent-recipients | Yes | List distinct people previously sent to, most recent first |
 | POST | /api/topup/create-session | Yes | Create a Stripe Checkout session (test mode) to add credit |
 | POST | /api/topup/confirm | Yes | Confirm a completed Stripe session and credit the wallet |
 | GET | /api/audit/log | Yes | Get audit event log |
@@ -197,7 +198,7 @@ miyupay/
 │   │   ├── hooks/useAuth.ts        # Auth state management
 │   │   ├── components/
 │   │   │   ├── layout/Layout.tsx   # Nav + page wrapper
-│   │   │   └── ui/                 # Reusable UI components, incl. PasswordStrengthMeter
+│   │   │   └── ui/                 # Reusable UI components, incl. PasswordStrengthMeter, Avatar
 │   │   ├── pages/
 │   │   │   ├── LandingPage.tsx
 │   │   │   ├── LoginPage.tsx

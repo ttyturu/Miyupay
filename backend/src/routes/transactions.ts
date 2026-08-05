@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body, query } from 'express-validator';
-import { send, getAll, getRates, checkRecipient } from '../controllers/transactionController';
+import { send, getAll, getRates, checkRecipient, getRecentRecipients } from '../controllers/transactionController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 
@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.get('/', getAll);
 router.get('/rates', getRates);
+router.get('/recent-recipients', getRecentRecipients);
 router.get('/recipient-check', [
   query('email').isEmail().normalizeEmail(),
   validate,

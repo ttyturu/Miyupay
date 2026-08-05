@@ -4,6 +4,7 @@ import { WalletIcon, CurrencyCircleDollarIcon, PaperPlaneTiltIcon, ClockCounterC
 import { walletService, transactionService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { Currency } from '../types';
+import Avatar from '../components/ui/Avatar';
 
 const SYMBOLS: Record<Currency, string> = { SGD: 'S$', MYR: 'RM', THB: '฿' };
 
@@ -72,11 +73,11 @@ export default function DashboardPage() {
       {/* Wallets */}
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Wallets</p>
       {wLoading ? (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           {[1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           {wallets?.map(w => (
             <div key={w.currency} className="bg-card border border-border rounded-lg shadow-sm p-4">
               <div className="flex items-center justify-between mb-2">
@@ -123,20 +124,24 @@ export default function DashboardPage() {
             const isSender = tx.sender_id === user?.id;
             const currency = isSender ? tx.sender_currency : tx.receiver_currency;
             const amount   = isSender ? tx.sender_amount  : tx.receiver_amount;
+            const counterpartyName = isSender ? tx.receiver_name : tx.sender_name;
             return (
               <div key={tx.id} className="bg-card border border-border rounded-lg shadow-sm px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {isSender ? `To ${tx.receiver_name}` : `From ${tx.sender_name}`}
-                  </p>
-                  <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 font-mono">
-                    {tx.reference_code}
-                    {tx.fraud_flagged && (
-                      <span className="ml-2 flex items-center gap-0.5 text-warning font-sans">
-                        <WarningCircleIcon size={12} weight="fill" /> flagged
-                      </span>
-                    )}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Avatar name={counterpartyName} />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {isSender ? `To ${tx.receiver_name}` : `From ${tx.sender_name}`}
+                    </p>
+                    <p className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 font-mono">
+                      {tx.reference_code}
+                      {tx.fraud_flagged && (
+                        <span className="ml-2 flex items-center gap-0.5 text-warning font-sans">
+                          <WarningCircleIcon size={12} weight="fill" /> flagged
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
                 <span className={`text-sm font-mono font-semibold tabular-nums ${
                   tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'

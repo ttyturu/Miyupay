@@ -203,3 +203,45 @@ describe('GET /api/transactions/recipient-check', () => {
     } finally { unfreeze(); }
   });
 });
+
+describe('GET /api/transactions/recent-recipients', () => {
+  it('returns an empty list for a sender with no transactions', async () => {
+    const sender = await registerAndVerify();
+
+    const res = await request(app).get('/api/transactions/recent-recipients')
+      .set('Authorization', `Bearer ${sender.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('returns distinct recipients ordered by most recent transaction', async () => {
+    freezeAt(NORMAL_HOUR_SGT);
+    try {
+      const sender = await registerAndVerify();
+      const receiverA = await registerAndVerify();
+      const receiverB = await registerAndVerify();
+
+      await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiverA.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 5 });
+      // Send to A again — should still only appear once in the list.
+      await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiverA.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 5 });
+      await request(app).post('/api/transactions/send')
+        .set('Authorization', `Bearer ${sender.token}`)
+        .send({ receiverEmail: receiverB.user.email, senderCurrency: 'SGD', receiverCurrency: 'SGD', amount: 5 });
+
+      const res = await request(app).get('/api/transactions/recent-recipients')
+        .set('Authorization', `Bearer ${sender.token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      // Most recently sent-to (B) should come first.
+      expect(res.body[0].email).toBe(receiverB.user.email);
+      expect(res.body[1].email).toBe(receiverA.user.email);
+      expect(res.body[0]).toHaveProperty('fullName');
+    } finally { unfreeze(); }
+  });
+});

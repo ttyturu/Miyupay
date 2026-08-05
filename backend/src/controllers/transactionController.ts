@@ -43,6 +43,22 @@ export const checkRecipient = async (req: Request, res: Response, next: NextFunc
   } catch (err) { next(err); }
 };
 
+export const getRecentRecipients = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { rows } = await db.query<{ email: string; full_name: string }>(
+      `SELECT r.email, r.full_name, MAX(t.created_at) AS last_sent
+       FROM transactions t
+       JOIN users r ON t.receiver_id = r.id
+       WHERE t.sender_id = $1
+       GROUP BY r.email, r.full_name
+       ORDER BY last_sent DESC
+       LIMIT 20`,
+      [req.user!.userId]
+    );
+    res.json(rows.map(r => ({ email: r.email, fullName: r.full_name })));
+  } catch (err) { next(err); }
+};
+
 export const getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { rows } = await db.query(

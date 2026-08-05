@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircleIcon, WarningCircleIcon, PaperPlaneTiltIcon, InfoIcon, ShieldWarningIcon } from '@phosphor-icons/react';
 import { transactionService, walletService } from '../services/api';
 import { Currency, Transaction } from '../types';
+import Avatar from '../components/ui/Avatar';
+
+const RECENT_RECIPIENTS_SHOWN = 5;
 
 const SYMBOLS: Record<Currency, string> = { SGD: 'S$', MYR: 'RM', THB: '฿' };
 const CURRENCIES: Currency[] = ['SGD', 'MYR', 'THB'];
@@ -20,9 +23,25 @@ export default function SendPage() {
   const [isNewRecipient, setIsNewRecipient] = useState(false);
   const [acknowledgedEmail, setAcknowledgedEmail] = useState('');
   const [showScamWarning, setShowScamWarning] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const { data: wallets } = useQuery({ queryKey: ['wallets'], queryFn: walletService.getWallets });
   const { data: rates }   = useQuery({ queryKey: ['rates'],   queryFn: transactionService.getRates });
+  const { data: recentRecipients } = useQuery({
+    queryKey: ['recent-recipients'],
+    queryFn: transactionService.getRecentRecipients,
+  });
+
+  const emailQuery = form.receiverEmail.trim().toLowerCase();
+  const suggestions = !recentRecipients ? [] : emailQuery
+    ? recentRecipients.filter(r => r.email.toLowerCase().includes(emailQuery))
+    : recentRecipients.slice(0, RECENT_RECIPIENTS_SHOWN);
+
+  const handleSelectSuggestion = (email: string) => {
+    setForm(f => ({ ...f, receiverEmail: email }));
+    setShowSuggestions(false);
+  };
 
   // Debounced check for whether this is a first-time recipient, used to
   // decide whether to show a scam-awareness warning before sending.
@@ -122,15 +141,40 @@ export default function SendPage() {
     <div className="max-w-md mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-foreground mb-6">Send money</h1>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div>
+        <div className="relative">
           <label htmlFor="send-email" className="block text-sm font-medium text-muted-foreground mb-1">
             Recipient email
           </label>
-          <input id="send-email" type="email" required placeholder="bob@example.com"
+          <input id="send-email" type="email" required placeholder="bob@example.com" autoComplete="off"
             value={form.receiverEmail}
-            onChange={e => setForm(f => ({ ...f, receiverEmail: e.target.value }))}
+            onChange={e => { setForm(f => ({ ...f, receiverEmail: e.target.value })); setShowSuggestions(true); }}
+            onFocus={() => { clearTimeout(blurTimer.current); setShowSuggestions(true); }}
+            onBlur={() => { blurTimer.current = setTimeout(() => setShowSuggestions(false), 150); }}
             className="w-full border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
           />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+              {!emailQuery && (
+                <p className="px-3 pt-2 pb-1 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Recent recipients
+                </p>
+              )}
+              {suggestions.map(r => (
+                <button
+                  key={r.email}
+                  type="button"
+                  onMouseDown={() => handleSelectSuggestion(r.email)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-muted transition-colors text-left"
+                >
+                  <Avatar name={r.fullName} size={28} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{r.fullName}</p>
+                    <p className="text-sm text-muted-foreground truncate">{r.email}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
           {isNewRecipient && (
             <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
               <InfoIcon size={14} /> This is a new recipient — you'll see a quick scam-awareness reminder before sending.

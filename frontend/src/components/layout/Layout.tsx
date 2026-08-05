@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { WalletIcon, ArrowsLeftRightIcon, ClockCounterClockwiseIcon, ShieldCheckIcon, SignOutIcon } from '@phosphor-icons/react';
 import { useAuth } from '../../hooks/useAuth';
 import Logo from '../ui/Logo';
+import Avatar from '../ui/Avatar';
 
 const NAV = [
   { to: '/dashboard',    label: 'Dashboard', icon: WalletIcon },
@@ -41,7 +42,12 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-sm text-muted-foreground">{user?.email}</span>
+            {user && (
+              <div className="flex items-center gap-2">
+                <Avatar name={user.fullName} size={28} />
+                <span className="hidden sm:inline text-sm text-muted-foreground">{user.email}</span>
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"

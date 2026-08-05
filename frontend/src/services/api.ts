@@ -53,6 +53,8 @@ export const transactionService = {
     api.get<Transaction[]>('/transactions').then(r => r.data),
   checkRecipient: (email: string) =>
     api.get<{ isNewRecipient: boolean }>('/transactions/recipient-check', { params: { email } }).then(r => r.data),
+  getRecentRecipients: () =>
+    api.get<{ email: string; fullName: string }[]>('/transactions/recent-recipients').then(r => r.data),
   send: (data: {
     receiverEmail: string;
     senderCurrency: string;

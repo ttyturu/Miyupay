@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { transactionService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { Currency } from '../types';
+import { Currency, Transaction } from '../types';
+import Avatar from '../components/ui/Avatar';
 
 const SYMBOLS: Record<Currency, string> = { SGD: 'S$', MYR: 'RM', THB: '฿' };
 
@@ -19,6 +20,14 @@ export default function TransactionsPage() {
     return <span className="text-xs font-medium bg-warning/10 text-warning px-2 py-0.5 rounded-full whitespace-nowrap">{status}</span>;
   };
 
+  const describe = (tx: Transaction) => {
+    const isSender = tx.sender_id === user?.id;
+    const currency = isSender ? tx.sender_currency : tx.receiver_currency;
+    const amount   = isSender ? tx.sender_amount  : tx.receiver_amount;
+    const counterpartyName = isSender ? tx.receiver_name : tx.sender_name;
+    return { isSender, currency, amount, counterpartyName };
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-foreground mb-6">Transactions</h1>
@@ -29,32 +38,29 @@ export default function TransactionsPage() {
       ) : !transactions?.length ? (
         <div className="text-center py-12 text-sm text-muted-foreground">No transactions yet.</div>
       ) : (
-        <div className="bg-card border border-border rounded-lg shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[720px]">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-28">Date</th>
-                <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Counterparty</th>
-                <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-32">Status</th>
-                <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-24">Currency</th>
-                <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right w-32">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map(tx => {
-                const isSender = tx.sender_id === user?.id;
-                const currency = isSender ? tx.sender_currency : tx.receiver_currency;
-                const amount   = isSender ? tx.sender_amount  : tx.receiver_amount;
-                return (
-                  <tr key={tx.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
-                      {new Date(tx.created_at).toLocaleDateString('en-SG')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">
-                        {isSender ? `→ ${tx.receiver_name}` : `← ${tx.sender_name}`}
+        <>
+          {/* Card list — mobile */}
+          <div className="md:hidden space-y-2">
+            {transactions.map(tx => {
+              const { isSender, currency, amount, counterpartyName } = describe(tx);
+              return (
+                <div key={tx.id} className="bg-card border border-border rounded-lg shadow-sm p-4">
+                  <div className="flex items-start gap-2.5">
+                    <Avatar name={counterpartyName} size={32} className="mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-foreground truncate">
+                          {isSender ? `→ ${tx.receiver_name}` : `← ${tx.sender_name}`}
+                        </p>
+                        <span className={`text-sm font-mono font-semibold tabular-nums whitespace-nowrap ${
+                          tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
+                        }`}>
+                          {tx.status === 'completed' ? (isSender ? '-' : '+') : ''}{SYMBOLS[currency]}{Number(amount).toFixed(2)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-0.5 font-mono">
+                        {tx.reference_code} · {new Date(tx.created_at).toLocaleDateString('en-SG')}
                       </p>
-                      <p className="text-sm text-muted-foreground mt-0.5 font-mono">{tx.reference_code}</p>
                       {tx.note && <p className="text-sm text-muted-foreground mt-0.5">{tx.note}</p>}
                       {tx.fraud_flagged && tx.fraud_reason && (
                         <p className="text-sm text-warning mt-0.5">{tx.fraud_reason}</p>
@@ -66,27 +72,82 @@ export default function TransactionsPage() {
                             : `${tx.sender_currency} → ${tx.receiver_currency}`}
                         </p>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1 items-start">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {statusBadge(tx.status, tx.fraud_flagged)}
                         {tx.is_cross_border && (
                           <span className="text-xs font-medium bg-secondary/10 text-secondary px-2 py-0.5 rounded-full whitespace-nowrap">cross-border</span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{currency}</td>
-                    <td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${
-                      tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
-                    }`}>
-                      {tx.status === 'completed' ? (isSender ? '-' : '+') : ''}{SYMBOLS[currency]}{Number(amount).toFixed(2)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Table — tablet/desktop */}
+          <div className="hidden md:block bg-card border border-border rounded-lg shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-28">Date</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Counterparty</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-32">Status</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-24">Currency</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right w-32">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map(tx => {
+                  const { isSender, currency, amount, counterpartyName } = describe(tx);
+                  return (
+                    <tr key={tx.id} className="border-b border-border last:border-0 align-top">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
+                        {new Date(tx.created_at).toLocaleDateString('en-SG')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-2.5">
+                          <Avatar name={counterpartyName} size={28} className="mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground">
+                              {isSender ? `→ ${tx.receiver_name}` : `← ${tx.sender_name}`}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-0.5 font-mono">{tx.reference_code}</p>
+                            {tx.note && <p className="text-sm text-muted-foreground mt-0.5">{tx.note}</p>}
+                            {tx.fraud_flagged && tx.fraud_reason && (
+                              <p className="text-sm text-warning mt-0.5">{tx.fraud_reason}</p>
+                            )}
+                            {tx.is_cross_border && (
+                              <p className="text-sm text-muted-foreground mt-0.5 font-mono">
+                                {isSender
+                                  ? `${tx.sender_currency} → ${tx.receiver_currency} · rate ${Number(tx.exchange_rate).toFixed(4)}`
+                                  : `${tx.sender_currency} → ${tx.receiver_currency}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1 items-start">
+                          {statusBadge(tx.status, tx.fraud_flagged)}
+                          {tx.is_cross_border && (
+                            <span className="text-xs font-medium bg-secondary/10 text-secondary px-2 py-0.5 rounded-full whitespace-nowrap">cross-border</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{currency}</td>
+                      <td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${
+                        tx.status !== 'completed' ? 'text-muted-foreground' : isSender ? 'text-destructive' : 'text-success'
+                      }`}>
+                        {tx.status === 'completed' ? (isSender ? '-' : '+') : ''}{SYMBOLS[currency]}{Number(amount).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
