@@ -90,9 +90,27 @@ npm run dev
 - `DATABASE_URL` — from step 2
 - `JWT_SECRET` — any long random string, e.g. `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
 - `STRIPE_SECRET_KEY` — optional; test-mode key from a Stripe account. The "Add credit" flow returns an error until this is set, everything else works without it.
+- `STRIPE_WEBHOOK_SECRET` — optional; see [Stripe webhooks](#stripe-webhooks-optional) below. Without it the webhook endpoint returns 503 and top-ups are confirmed only by the browser redirect.
 - `GROQ_API_KEY` — optional; free-tier key from console.groq.com. Powers the AI transaction summary on the admin panel. Without it, that endpoint returns a "not configured" message instead of erroring.
 
 A successful start logs `MiyuPay backend running on port 3001` and `Database connected`.
+
+### Stripe webhooks (optional)
+
+Top-ups are confirmed two ways: the browser hitting `/topup/success` after Stripe redirects back, and a webhook Stripe sends directly to the server. The webhook is what makes crediting survive a customer closing the tab right after paying — without it, Stripe has the money and the wallet is never credited. Both paths are idempotent, so running with or without it is safe.
+
+To enable locally, install the [Stripe CLI](https://stripe.com/docs/stripe-cli), then in a separate terminal:
+
+```bash
+stripe login
+stripe listen --forward-to localhost:3001/api/webhooks/stripe
+```
+
+It prints a `whsec_...` signing secret — paste that into `backend/.env` as `STRIPE_WEBHOOK_SECRET` and restart the backend. Leave `stripe listen` running while you test.
+
+To verify it works, start a top-up, pay with test card `4242 4242 4242 4242`, and **close the tab immediately** before the redirect completes. The balance still updates, because the webhook credited it independently of the browser.
+
+In production, create an endpoint at [dashboard.stripe.com/test/webhooks](https://dashboard.stripe.com/test/webhooks) pointing at `https://<your-backend>/api/webhooks/stripe`, subscribe it to `checkout.session.completed` and `checkout.session.expired`, and copy that endpoint's signing secret instead.
 
 ---
 
@@ -116,7 +134,7 @@ cd backend
 npm run seed
 ```
 
-Populates 11 demo accounts (`demo1@miyupay.dev` … `demo11@miyupay.dev`, password `DemoPass123!`) with deliberately varied activity — clean transfers, large amounts, cross-border transfers, high frequency, structuring, the new-recipient + unusual-hour combo, a rapid top-up flagged by `TOPUP_VELOCITY`, a pending (abandoned) top-up, and one person with flags from both fraud engines to demonstrate the aggregate risk score. Completed top-ups post real ledger entries against the clearing wallet, same as a live top-up would. Safe to re-run; it exits early if the demo data already exists. Reads whichever `DATABASE_URL` is active in `.env`, so pointing it at a Supabase connection string seeds the deployed database instead of the local one (the clearing account must already exist there — see the migration SQL in step 2 — before running the seed script against a deployed database).
+Populates 11 demo accounts (`demo1@miyupay.dev` … `demo11@miyupay.dev`, password `DemoPass123!`) with deliberately varied activity — clean transfers, large amounts, cross-border transfers, high frequency, structuring, the new-recipient + unusual-hour combo, a rapid top-up flagged by `TOPUP_VELOCITY`, a pending (abandoned) top-up — visible in the admin panel but deliberately hidden from the user's own history, since no money ever moved — and one person with flags from both fraud engines to demonstrate the aggregate risk score. Completed top-ups post real ledger entries against the clearing wallet, same as a live top-up would. Safe to re-run; it exits early if the demo data already exists. Reads whichever `DATABASE_URL` is active in `.env`, so pointing it at a Supabase connection string seeds the deployed database instead of the local one (the clearing account must already exist there — see the migration SQL in step 2 — before running the seed script against a deployed database).
 
 There's no self-serve way to become an admin — it's granted with a direct database update:
 ```sql
@@ -178,7 +196,7 @@ Current live stack:
 ### Backend → Render
 - Web Service connected to this GitHub repo, root directory `backend`
 - Builds from the existing `Dockerfile`
-- Environment variables (from `backend/.env.example`): `DATABASE_URL` (Supabase), `JWT_SECRET`, `FRONTEND_URL` (the Vercel URL, not `localhost` — otherwise CORS blocks the frontend), `STRIPE_SECRET_KEY`, `GROQ_API_KEY` (optional), `NODE_ENV=production`
+- Environment variables (from `backend/.env.example`): `DATABASE_URL` (Supabase), `JWT_SECRET`, `FRONTEND_URL` (the Vercel URL, not `localhost` — otherwise CORS blocks the frontend), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (optional — from a webhook endpoint pointing at `https://<render-url>/api/webhooks/stripe`, not the CLI secret), `GROQ_API_KEY` (optional), `NODE_ENV=production`
 
 ### Frontend → Vercel
 - Root directory `frontend`, build command `npm run build`, output directory `dist`

@@ -73,11 +73,17 @@ export const getAll = async (req: Request, res: Response, next: NextFunction): P
        ORDER BY t.created_at DESC LIMIT 50`,
       [req.user!.userId]
     );
+    // Completed only. A pending/expired top-up is a checkout the user opened
+    // and never paid for — no charge, no hold, no money moved — so it isn't an
+    // entry in a record of money movements. Showing it as "pending" implies
+    // funds are in flight when nothing was ever taken. Admins still see every
+    // row (see adminController), where abandoned attempts are a card-testing
+    // signal rather than a user-facing event.
     const { rows: topups } = await db.query<TopupActivity>(
       `SELECT tp.*, 'topup' AS type, u.full_name AS user_full_name, u.email AS user_email
        FROM topups tp
        JOIN users u ON tp.user_id = u.id
-       WHERE tp.user_id=$1
+       WHERE tp.user_id=$1 AND tp.status='completed'
        ORDER BY tp.created_at DESC LIMIT 50`,
       [req.user!.userId]
     );

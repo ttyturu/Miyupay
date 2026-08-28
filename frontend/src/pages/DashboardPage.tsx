@@ -128,7 +128,7 @@ export default function DashboardPage() {
                     <PlusCircleIcon size={18} weight="fill" className="text-success" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    Top-up via Stripe{item.status === 'pending' ? ' (pending)' : ''}
+                    Top-up via Stripe
                   </p>
                 </div>
                 <span className="text-sm font-mono font-semibold tabular-nums text-success">

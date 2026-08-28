@@ -1,6 +1,7 @@
 {
   "name": "miyupay-backend",
   "version": "1.0.0",
+  "license": "MIT",
   "main": "src/index.ts",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

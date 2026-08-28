@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { db } from '../utils/db';
 import { stripe } from '../services/stripeService';
 import { runTopupFraudChecks } from '../services/topupFraudService';
-import { CLEARING_ACCOUNT_ID } from '../utils/constants';
+import { creditTopup } from '../services/topupCreditService';
+
+// Stripe defaults to 24h, which is far longer than anyone legitimately spends
+// on a wallet top-up. A tighter window closes abandoned rows sooner and makes a
+// burst of expiries a much sharper card-testing signal. Stripe's floor is 30m.
+const SESSION_TTL_MINUTES = 60;
 
 export const createSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -27,6 +32,7 @@ export const createSession = async (req: Request, res: Response, next: NextFunct
       }],
       success_url: `${process.env.FRONTEND_URL}/topup/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/topup`,
+      expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL_MINUTES * 60,
     });
 
     await db.query(
@@ -56,8 +62,9 @@ export const confirmTopup = async (req: Request, res: Response, next: NextFuncti
     }
 
     // Fast path only — avoids an unnecessary Stripe API call for the common
-    // case (e.g. the success page re-rendering). NOT the actual safety
-    // mechanism against double-crediting; see the atomic claim below for that.
+    // case (e.g. the success page re-rendering, or the webhook having already
+    // landed first). NOT the safety mechanism against double-crediting; the
+    // atomic claim inside creditTopup is.
     if (topup.status === 'completed') {
       const { rows: [wallet] } = await db.query<{ balance: string }>(
         'SELECT balance FROM wallets WHERE user_id=$1 AND currency=$2',
@@ -72,71 +79,9 @@ export const confirmTopup = async (req: Request, res: Response, next: NextFuncti
       res.status(400).json({ error: 'Payment not completed' }); return;
     }
 
-    const client = await db.pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Atomic claim: only one concurrent request can ever flip
-      // pending -> completed, since this is a single indivisible statement —
-      // there's no gap between "check" and "act" for a second request to slip
-      // into. If this updates zero rows, another request (a page refresh, a
-      // second tab, a retried request) already claimed and processed this
-      // top-up between our check above and now; treat that as success rather
-      // than crediting the wallet a second time.
-      const { rows: [claimed] } = await client.query<{ id: string }>(
-        `UPDATE topups SET status='completed', completed_at=NOW()
-         WHERE id=$1 AND status='pending' RETURNING id`,
-        [topup.id]
-      );
-
-      if (!claimed) {
-        await client.query('ROLLBACK');
-        const { rows: [wallet] } = await db.query<{ balance: string }>(
-          'SELECT balance FROM wallets WHERE user_id=$1 AND currency=$2',
-          [req.user!.userId, topup.currency]
-        );
-        res.json({ amount: Number(topup.amount), balance: Number(wallet.balance) });
-        return;
-      }
-
-      // DEBIT the clearing wallet — money entering from Stripe now has a real
-      // counterparty, same double-entry pattern a transfer uses. Legitimately
-      // goes negative (it's a pass-through, not a bounded pool of funds).
-      const { rows: [clearingWallet] } = await client.query<{ id: string; balance: string }>(
-        `UPDATE wallets SET balance = balance - $1, updated_at = NOW()
-         WHERE user_id = $2 AND currency = $3 RETURNING id, balance`,
-        [topup.amount, CLEARING_ACCOUNT_ID, topup.currency]
-      );
-
-      // CREDIT the user's wallet
-      const { rows: [userWallet] } = await client.query<{ id: string; balance: string }>(
-        `UPDATE wallets SET balance = balance + $1, updated_at = NOW()
-         WHERE user_id=$2 AND currency=$3 RETURNING id, balance`,
-        [topup.amount, req.user!.userId, topup.currency]
-      );
-
-      await client.query(
-        `INSERT INTO ledger_entries (topup_id,wallet_id,entry_type,currency,amount,balance_after)
-         VALUES ($1,$2,'DEBIT',$3,$4,$5)`,
-        [topup.id, clearingWallet.id, topup.currency, topup.amount, parseFloat(clearingWallet.balance)]
-      );
-      await client.query(
-        `INSERT INTO ledger_entries (topup_id,wallet_id,entry_type,currency,amount,balance_after)
-         VALUES ($1,$2,'CREDIT',$3,$4,$5)`,
-        [topup.id, userWallet.id, topup.currency, topup.amount, parseFloat(userWallet.balance)]
-      );
-
-      await client.query(
-        `INSERT INTO audit_log (user_id,event_type,metadata) VALUES ($1,'WALLET_TOPUP',$2)`,
-        [req.user!.userId, JSON.stringify({ amount: Number(topup.amount), currency: topup.currency, stripeSessionId: sessionId })]
-      );
-      await client.query('COMMIT');
-      res.json({ amount: Number(topup.amount), balance: Number(userWallet.balance) });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    // Shared with the webhook path, which is racing this request — whichever
+    // arrives second is absorbed idempotently.
+    const result = await creditTopup(topup.id);
+    res.json({ amount: result.amount, balance: result.balance });
   } catch (err) { next(err); }
 };

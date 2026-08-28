@@ -59,10 +59,10 @@ export default function TransactionsPage() {
                       <p className="text-sm text-muted-foreground mt-0.5 font-mono">
                         {new Date(item.created_at).toLocaleDateString('en-SG')}
                       </p>
+                      {/* Always completed — the API only returns credited
+                          top-ups, since an unpaid checkout moved no money. */}
                       <div className="mt-2">
-                        {item.status === 'pending'
-                          ? <span className="text-xs font-medium bg-warning/10 text-warning px-2 py-0.5 rounded-full">pending</span>
-                          : <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full">completed</span>}
+                        <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full">completed</span>
                       </div>
                     </div>
                   </div>
@@ -140,9 +140,7 @@ export default function TransactionsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {item.status === 'pending'
-                          ? <span className="text-xs font-medium bg-warning/10 text-warning px-2 py-0.5 rounded-full whitespace-nowrap">pending</span>
-                          : <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full whitespace-nowrap">completed</span>}
+                        <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full whitespace-nowrap">completed</span>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{item.currency}</td>
                       <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-success">

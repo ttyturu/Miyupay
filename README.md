@@ -30,7 +30,7 @@ Users hold wallets in SGD, MYR and THB and can send money to each other instantl
 | Admin panel | Role-gated: look up any user's full activity (transfers + top-ups) by email, drill into ledger/fraud-rule detail per item, freeze/unfreeze accounts, browse all flagged activity sorted by recency or risk |
 | AI transaction summary | Admin-only — summarizes a user's activity via Groq, with real data and their aggregate risk score as context (RAG-lite) |
 | Immutable audit log | Every state change recorded permanently, append-only — admin-only, not customer-facing |
-| Transaction history | Full history for every user — transfers sent/received and top-ups, one merged chronological feed |
+| Transaction history | Full history for every user — transfers sent/received and completed top-ups, one merged chronological feed ([why not pending ones](#top-up-status--and-why-users-never-see-pending)) |
 | React frontend | TypeScript, React Query, Tailwind CSS |
 | CI | GitHub Actions — lint, typecheck, tests, build on every push/PR |
 
@@ -178,6 +178,12 @@ A RAG-lite pattern, not a framework, in three explicit steps:
 
 The prompt opens with the aggregate risk rating and asks the model to prioritize which flags deserve attention first, rather than listing every flag as equally important. No vector database or embeddings — the data being retrieved is small and already structured, so a direct SQL query is enough. Requires `GROQ_API_KEY` in `backend/.env` (see `.env.example`); without it, the summary endpoint returns a "not configured" message instead of erroring.
 
+Two details matter for making the output trustworthy rather than merely fluent:
+
+**The prompt states the rating's real scope.** Aggregate risk counts only transfers the user *sent* plus their own top-ups — a fraud flag describes the sender's behaviour, so a flag on money they merely *received* belongs to the counterparty. An earlier prompt described the score as covering "every flagged transfer and top-up", which made a legitimate `0/100` look self-contradictory next to visibly `FLAGGED` rows. The model resolved the contradiction by inventing a scoring threshold that doesn't exist — a confident, fluent, completely fabricated explanation of how the risk engine works. In a compliance tool that's worse than no summary at all. The prompt now states the actual scope, tags received-flag rows inline as counterparty conduct, and takes a separate branch at `0/100` that instructs the model to report the absence plainly instead of inventing drivers for it.
+
+**Reasoning tokens are budgeted.** `gpt-oss-120b` is a reasoning model, and its hidden reasoning is drawn from the *same* `max_tokens` budget as the visible answer. On the ambiguous prompt above it spent 298 of 300 tokens deliberating and returned empty content with `finish_reason: 'length'` — an "outage" that was really a budget exhaustion. `reasoning_effort: 'low'` plus a larger ceiling keeps the answer from being starved, and an empty response is now reported distinctly from an API failure so the two are debuggable apart.
+
 ---
 
 ## Clearing account (double-entry top-ups)
@@ -193,16 +199,36 @@ This keeps the ledger's core invariant intact for *all* money movement, not just
 
 ---
 
+## Top-up status — and why users never see "pending"
+
+A `topups` row is created the moment a Checkout session is opened, *before* the customer has paid anything, because the row is what binds `stripe_session_id → user + amount + fraud snapshot` and what `TOPUP_VELOCITY` counts. It therefore needs a status for the window where the outcome isn't known yet:
+
+| Status | Meaning | User sees | Admin sees |
+|---|---|---|---|
+| `pending` | Session open, nothing paid | — | yes |
+| `completed` | Paid and credited | ✅ completed | yes |
+| `expired` | Session lapsed unpaid (abandoned) | — | yes |
+
+Only `completed` top-ups appear in a user's history. A checkout someone opened and walked away from involves **no charge, no authorization, no hold** — nothing moved, so it isn't an entry in a record of money movements. Rendering it as "pending" actively misleads: it implies funds are in flight when nothing was ever taken. And because a card top-up either lands within seconds or never happened, the only moments a user could *see* "pending" are moments when it's already wrong.
+
+This follows what the payment industry actually does. DBS shows pending card transactions because an authorization has genuinely ring-fenced the customer's funds, and *drops* them if the merchant never settles rather than marking them failed. YouTrip shows a pending top-up only while money has left the bank but not yet reached the wallet. GrabPay states plainly that an unsuccessful top-up "may not appear in your transaction history because the amount was not successfully reflected into the wallet." The common rule: **show pending only when the customer's money has actually left their control but hasn't arrived yet** — never as a placeholder for "we're waiting to see if they'll pay."
+
+Admins still see every row, where a cluster of `expired` sessions is a card-testing signal rather than a user-facing event. `expired` is set by the `checkout.session.expired` webhook; sessions are created with a 60-minute `expires_at` (Stripe's default is 24h, far longer than anyone spends on a wallet top-up), so abandoned rows resolve themselves without a cron job.
+
+---
+
 ## Concurrency safety
 
-Two race conditions were found (via a deliberate route-by-route review, not in normal use) and fixed — both are the same underlying class of bug: a "check, then act" pattern with a gap in between where a second request can slip through.
+Two race conditions were found (via a deliberate route-by-route review, not in normal use) and fixed — both are the same underlying class of bug: a "check, then act" pattern with a gap in between where a second request can slip through. A third, related gap in the same flow — top-up confirmation depending entirely on the customer's browser — is covered below it.
 
-**Top-up double-crediting.** `confirmTopup` used to check "is this top-up already completed?" as a plain `SELECT`, then — after an intervening network round-trip to Stripe — credit the wallet in a separate step. If that confirm request ran twice around the same time (a page refresh on the success page, two tabs, a retried request), both could read "not yet completed" before either had finished, and both would credit the wallet — real money duplicated from one Stripe payment. The fix replaces the separate check with a single atomic claim:
+**Top-up double-crediting.** `confirmTopup` used to check "is this top-up already completed?" as a plain `SELECT`, then — after an intervening network round-trip to Stripe — credit the wallet in a separate step. If that confirm request ran twice around the same time (a page refresh on the success page, two tabs, a retried request), both could read "not yet completed" before either had finished, and both would credit the wallet — real money duplicated from one Stripe payment. The fix replaces the separate check with a single atomic claim, now living in `topupCreditService.ts` so both confirmation paths share one implementation:
 ```sql
 UPDATE topups SET status='completed', completed_at=NOW()
-WHERE id=$1 AND status='pending' RETURNING id
+WHERE id=$1 AND status<>'completed' RETURNING id, amount, currency, user_id
 ```
-Only one concurrent request can ever flip `pending → completed`, because the check and the change happen as one indivisible database statement instead of two. A request that gets zero rows back knows another request already won the race and simply returns the current balance instead of crediting again. Covered by `topupConcurrency.test.ts`, which fires the claim twice at once and asserts exactly one succeeds.
+Only one caller can ever flip a top-up to `completed`, because the check and the change happen as one indivisible database statement instead of two. A caller that gets zero rows back knows someone else already won the race and returns the current balance instead of crediting again. Claiming from *any* non-completed status rather than strictly `pending` also covers the case where a session was marked `expired` but Stripe confirms it was paid after all — Stripe is authoritative about payment, so that money still reaches the user. Covered by `topupConcurrency.test.ts`, which calls `creditTopup()` twice simultaneously and asserts exactly one credits, the ledger holds exactly two entries, and a late expiry can never un-credit a paid top-up.
+
+**Confirmation that depended on the customer's browser.** The bug above assumed `confirmTopup` runs at all. It only runs if Stripe's redirect back to `/topup/success` succeeds — so if the customer closed the tab right after paying, lost signal, or their phone died, Stripe had taken the money and the wallet was never credited. No retry, no recovery: the top-up sat at `pending` forever and the user was simply out the funds. Trusting the redirect is the classic failure mode of a first payments integration. The fix is a Stripe webhook (`POST /api/webhooks/stripe`) — Stripe notifies the server directly, machine-to-machine, and retries for 72 hours, so crediting no longer depends on the customer's browser surviving the round trip. Both paths call the same idempotent `creditTopup()` and routinely race each other; whichever arrives second is absorbed. The endpoint is public and unauthenticated (Stripe has no session to present), so an HMAC signature check against the raw request bytes is the only thing standing between an anonymous POST and free wallet credit — which is why the webhook router is mounted *before* `express.json()`, since parsing the body first would destroy the signature. `webhookSignature.test.ts` asserts that unsigned requests, wrongly-signed requests, and a forged "payment succeeded" event are all rejected without moving a cent.
 
 **Fraud-rule evasion via concurrent sends.** `SPLIT_TRANSFERS`, `HIGH_FREQUENCY`, and `NEW_RECIPIENT` all work by counting/summing the sender's *other* transactions — but that read happened before the current send was inserted, with nothing serializing two sends from the same sender. Two nearly-simultaneous sends (e.g. an attempt to split a large transfer to dodge `SPLIT_TRANSFERS`) could each evaluate fraud against the same "before" state and both slip through a pattern that only trips the rule when considered together. The fix: `processTransaction` now opens its transaction and takes a row lock on the sender (`SELECT ... FOR UPDATE`) before running any fraud checks, so a second concurrent send from the same sender blocks until the first fully commits — by the time it runs its own fraud check, it sees the first send's committed row. Covered by a concurrency test in `transactions.test.ts` that fires three structuring-eligible sends at once via `Promise.all` and asserts at least one is still caught.
 
@@ -227,7 +253,8 @@ Only one concurrent request can ever flip `pending → completed`, because the c
 | GET | /api/transactions/recipient-check | Yes | Check whether the given email is a first-time recipient |
 | GET | /api/transactions/recent-recipients | Yes | List distinct people previously sent to, most recent first |
 | POST | /api/topup/create-session | Yes | Create a Stripe Checkout session (test mode) to add credit; runs TOPUP_VELOCITY first |
-| POST | /api/topup/confirm | Yes | Confirm a completed Stripe session; posts DEBIT/CREDIT ledger entries via the clearing wallet |
+| POST | /api/topup/confirm | Yes | Confirm a paid Stripe session from the browser after the redirect; posts DEBIT/CREDIT ledger entries via the clearing wallet. Races the webhook below — both are idempotent |
+| POST | /api/webhooks/stripe | Signature | Stripe → server confirmation, independent of the customer's browser. Credits on `checkout.session.completed`, marks `expired` on `checkout.session.expired`. Authenticated by HMAC signature, not JWT |
 | GET | /api/admin/users/search | Admin | Live search for a user by partial email or name |
 | GET | /api/admin/users/:email/audit | Admin | Look up a user by email — full merged activity (transfers + top-ups) and their aggregate risk score |
 | GET | /api/admin/users/:email/summary | Admin | AI-generated plain-English summary of a user's activity |
@@ -255,11 +282,13 @@ miyupay/
 │   │   │   ├── topupFraudService.ts  # TOPUP_VELOCITY — separate, funding-side rule
 │   │   │   ├── transactionService.ts # Double-entry ledger logic
 │   │   │   ├── stripeService.ts      # Stripe client (test mode)
+│   │   │   ├── topupCreditService.ts # Idempotent top-up crediting, shared by confirm + webhook
 │   │   │   └── groqService.ts        # AI activity summary (admin-only)
 │   │   ├── controllers/
 │   │   │   ├── authController.ts
 │   │   │   ├── transactionController.ts
-│   │   │   ├── topupController.ts  # Stripe Checkout session + confirm (clearing-wallet ledger entries)
+│   │   │   ├── topupController.ts  # Stripe Checkout session + browser-side confirm
+│   │   │   ├── webhookController.ts # Stripe webhook — signature-verified, browser-independent confirm
 │   │   │   └── adminController.ts  # User lookup, aggregate risk, flagged list, freeze/unfreeze, ledger/fraud drill-down
 │   │   ├── middleware/
 │   │   │   ├── auth.ts             # JWT verification
@@ -270,6 +299,7 @@ miyupay/
 │   │   │   ├── auth.ts
 │   │   │   ├── transactions.ts
 │   │   │   ├── topup.ts
+│   │   │   ├── webhooks.ts         # Raw-body route, mounted before express.json()
 │   │   │   ├── admin.ts
 │   │   │   └── wallet.ts
 │   │   ├── utils/
@@ -409,3 +439,10 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, and build for both 
 ---
 
 
+
+## License
+
+[MIT](LICENSE) — free to use, modify and distribute, with no warranty.
+
+A portfolio project, not a licensed payment service — Stripe runs in test mode
+and no real money moves.

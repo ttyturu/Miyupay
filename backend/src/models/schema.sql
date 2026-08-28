@@ -101,7 +101,10 @@ CREATE TABLE topups (
   stripe_session_id  VARCHAR(255) UNIQUE NOT NULL,
   currency           VARCHAR(3) NOT NULL,
   amount             DECIMAL(18,6) NOT NULL CHECK (amount > 0),
-  status             VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | completed
+  -- pending   session open, nothing paid yet  (internal — never shown to users)
+  -- completed paid and credited                (the only status users ever see)
+  -- expired   Stripe session lapsed unpaid     (internal — admin/fraud only)
+  status             VARCHAR(20) NOT NULL DEFAULT 'pending',
   fraud_flagged      BOOLEAN NOT NULL DEFAULT FALSE,
   fraud_reason       TEXT,
   risk_score         INT NOT NULL DEFAULT 0, -- 0-100; currently only TOPUP_VELOCITY
